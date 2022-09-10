@@ -1,0 +1,32 @@
+* Intro
+
+Contacts management system for Org Mode.
+
+(The public repo of original =org-mode/contrib/lisp/org-contacts.el=.)
+
+Manage your contacts from Org mode and in Org mode convenient way. You can auto complete email
+addresses, export contacts to a vCard file, put birthdays in your Org Agenda, and more.
+
+* Screenshots
+
+* Installation
+
+Package will be submitted to NonGNU or MELPA. Wait me have time to do this work.
+
+* Usage
+
+** Find contact in org-contacts databse
+
+Use command =[M-x org-contacts]= to search.
+
+** Complete contact property with some functions support
+
+*** NAME
+
+*** NICK
+
+*** EMAIL
+
+*** BIRTHDAY
+
+

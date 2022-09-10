@@ -1,0 +1,3 @@
+*.elc
+/org-contacts-autoloads.el
+/org-contacts-pkg.el
