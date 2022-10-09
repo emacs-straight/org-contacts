@@ -7,6 +7,15 @@ Contacts management system for Org Mode.
 Manage your contacts from Org mode and in Org mode convenient way. You can auto complete email
 addresses, export contacts to a vCard file, put birthdays in your Org Agenda, and more.
 
+* Features
+
+- Managing contacts information in Org mode.
+- Recording contact info in Org mode.
+- Searching with command ~org-contacts~.
+- Used as contacts database backend for email address completing in mu4e etc.
+- Export contacts to a vCard file.
+- Put birthdays in your Org Agenda.
+
 * Screenshots
 
 * Installation
@@ -15,7 +24,7 @@ Package will be submitted to NonGNU or MELPA. Wait me have time to do this work.
 
 * Usage
 
-** Find contact in org-contacts databse
+** Search contact in org-contacts databse
 
 Use command =[M-x org-contacts]= to search.
 
