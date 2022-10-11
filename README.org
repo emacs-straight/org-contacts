@@ -20,7 +20,7 @@ addresses, export contacts to a vCard file, put birthdays in your Org Agenda, an
 
 * Installation
 
-Package will be submitted to NonGNU or MELPA. Wait me have time to do this work.
+Package has been submitted to NonGNU or MELPA. You can install it through those package sources.
 
 * Usage
 
