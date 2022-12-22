@@ -1301,31 +1301,30 @@ Each element has the form (NAME . (FILE . POSITION))."
         (org-contacts-files))))
 
 ;;;###autoload
-(defun org-contacts-link-open (path)
+(defun org-contacts-link-open (query)
   "Open contacts: link type with jumping or searching."
-  (let ((query path))
+  (let* ((f (car (org-contacts-files)))
+         (fname (file-name-nondirectory f))
+         (buf (progn
+                (unless (buffer-live-p (get-buffer fname)) (find-file f))
+                (get-buffer fname))))
     (cond
      ;; /query/ format searching
      ((string-match "/.*/" query)
-      (let* ((f (car (org-contacts-files)))
-             (buf (get-buffer (file-name-nondirectory f))))
-        (unless (buffer-live-p buf) (find-file f))
-        (with-current-buffer buf
-          (string-match "/\\(.*\\)/" query)
-          (occur (match-string 1 query)))))
+      (with-current-buffer buf
+        (string-match "/\\(.*\\)/" query)
+        (occur (match-string 1 query))))
+
      ;; jump to exact contact headline directly
      (t
-      (let* ((f (car (org-contacts-files)))
-             (_ (find-file f))
-             (buf (get-buffer (file-name-nondirectory f))))
-        (with-current-buffer buf
-          (goto-char (marker-position (org-find-exact-headline-in-buffer query))))
-        (display-buffer buf '(display-buffer-below-selected)))
+      (with-current-buffer buf
+        (if-let ((position (org-find-exact-headline-in-buffer query)))
+            (goto-char (marker-position position))
+          (user-error "[org-contacts] Can't find <%s> in your `org-contacts-files'." query)))
+      (display-buffer buf '(display-buffer-below-selected))
 
-      ;; (let* ((f (car (org-contacts-files)))
-      ;;        (_ (find-file f))
-      ;;        ;; FIXME:
-      ;;        (contact-entry (map-filter
+      ;; FIXME:
+      ;; (let* ((contact-entry (map-filter
       ;;                        (lambda (contact-plist)
       ;;                          (if (string-equal (plist-get contact-plist :name) query)
       ;;                              contact-plist))
