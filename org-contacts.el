@@ -900,6 +900,7 @@ This adds `org-contacts-gnus-check-mail-address' and
   (add-hook 'gnus-article-prepare-hook #'org-contacts-gnus-check-mail-address)
   (add-hook 'gnus-article-prepare-hook #'org-contacts-gnus-store-last-mail))
 
+;;;###autoload
 (defun org-contacts-setup-completion-at-point ()
   "Add `org-contacts-message-complete-function' as a new function
 to complete the thing at point."
