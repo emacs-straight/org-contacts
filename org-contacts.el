@@ -1363,20 +1363,30 @@ Each element has the form (NAME . (FILE . POSITION))."
 
 (defun org-contacts-mailto-link--get-all-emails ()
   "Retrieve all org-contacts EMAIL property values."
-  (mapcar
-   (lambda (contact)
-     (let* ((org-contacts-buffer (find-file-noselect (car (org-contacts-files))))
-            (name (plist-get contact :name))
-            (position (plist-get contact :position))
-            (email (save-excursion
-                     (with-current-buffer org-contacts-buffer
-                       (goto-char position)
-                       ;; (symbol-name (org-property-or-variable-value 'EMAIL))
-                       (org-entry-get (point) "EMAIL")))))
-       (ignore name)
-       ;; (cons name email)
-       email))
-   (org-contacts--all-contacts)))
+  (setq org-contacts-emails-list
+        (mapcar
+         (lambda (contact)
+           (let* ((org-contacts-buffer (find-file-noselect (car (org-contacts-files))))
+                  (name (plist-get contact :name))
+                  (position (plist-get contact :position))
+                  (email (save-excursion
+                           (with-current-buffer org-contacts-buffer
+                             (goto-char position)
+                             ;; (symbol-name (org-property-or-variable-value 'EMAIL))
+                             (when-let ((pvalue (org-entry-get (point) "EMAIL")))
+                               ;; handle `mailto:' link. e.g. "[[mailto:yantar92@posteo.net]]", "[[mailto:yantar92@posteo.net][yantar92@posteo.net]]"
+                               ;; Reference the testing file `test-org-contacts.el'.
+                               (if (string-match
+                                    "\\[\\[mailto:\\(.*\\)\\]\\(\\[.*\\]\\)\\]\\(,\\ *\\[\\[mailto:\\(.*\\)\\]\\(\\[.*\\]\\)\\]\\)"
+                                    pvalue)
+                                   (match-string 1 pvalue)
+                                 pvalue))))))
+             (ignore name)
+             ;; (cons name email)
+             email))
+         (org-contacts--all-contacts)))
+  ;; clean nil and empty string "" from result.
+  (delq "" (delq nil org-contacts-emails-list)))
 
 (defun org-contacts-mailto-link-completion (&optional _arg)
   "Org mode link `mailto:' completion with org-contacts emails."
