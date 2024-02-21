@@ -1048,12 +1048,38 @@ address."
 (defun org-contacts-completing-read-nickname (prompt collection
                                                      &optional predicate require-match initial-input
                                                      hist def inherit-input-method)
-  "Like `completing-read' but reads a nickname."
-  (if (featurep 'erc)
-      (org-completing-read prompt (append collection (org-contacts-erc-nicknames-list)) predicate require-match
-                           initial-input hist def inherit-input-method)
-    (org-completing-read prompt collection predicate require-match
-                         initial-input hist def inherit-input-method)))
+  "Like `completing-read' but reads a property 'NICKNAME' value.
+Return a org-contacts NICKNAME as property's value after completion."
+  (let* ((org-contacts-all-contacts (with-memoization org-contacts-all-contacts
+                                      (org-contacts--all-contacts)))
+         (org-contacts-candidates-propertized
+          (mapcar
+           (lambda (plist)
+             (let* ((name (plist-get plist :name))
+                    (name-chinese (plist-get plist :name-chinese))
+                    (name-english (plist-get plist :name-english))
+                    (nick (plist-get plist :nick)))
+               (unless (or (null nick) (string-empty-p nick))
+                 (propertize nick        ; <- The `completing-read' select candidate inserted value.
+                             'display (concat
+                                       (when name (propertize (format "%s " name) :face '(:foreground "ForestGreen")))
+                                       (unless (or (null name-english) (string-empty-p name-english))
+                                         (propertize (format "%s " name-english) :face '(:foreground "LightSeaGreen")))
+                                       (unless (or (null nick) (string-empty-p nick))
+                                         (propertize (format "(%s) " nick) :face '(:foreground "LightGray"))))))))
+           org-contacts-all-contacts))
+         (contact-names (mapcar (lambda (plist) (plist-get plist :name)) org-contacts-all-contacts))
+         (contact-nick (substring-no-properties
+                        (org-completing-read "org-contacts NICKNAME: "
+                                             (append org-contacts-candidates-propertized collection
+                                                     (when (or (erc-server-buffer-live-p)
+                                                               (erc-server-process-alive)
+                                                               erc-server-processing-p)
+                                                       (org-contacts-erc-nicknames-list)))
+                                             predicate require-match initial-input
+                                             hist def inherit-input-method))))
+    ;; Detect whether input contact is in `org-contacts' existing list.
+    contact-nick))
 
 (defun org-contacts-erc-nicknames-list ()
   "Return all nicknames of all ERC buffers."
