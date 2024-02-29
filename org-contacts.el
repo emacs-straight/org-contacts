@@ -1,4 +1,4 @@
-;;; org-contacts.el --- Contacts management system for Org Mode -*- lexical-binding: t; -*-
+;;; org-contacts.el --- Contacts management system for Org mode -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2010-2022  Free Software Foundation, Inc.
 
@@ -72,6 +72,11 @@
 (require 'org-agenda)
 (require 'org-capture)
 (require 'ol)
+(autoload 'with-memoization "subr")
+
+(declare-function erc-server-buffer-live-p "erc" ())
+(declare-function erc-server-process-alive "erc" (&optional buffer))
+(defvar erc-server-processing-p)
 
 (defgroup org-contacts nil
   "Options about contacts management."
@@ -634,7 +639,6 @@ description."
 (defun org-contacts-org-complete--annotation-function (candidate)
   "Return org-contacts tags of contact candidate."
   ;; TODO
-  "Tags: " ;; FIXME: Ignored!
   (ignore candidate))
 
 (defun org-contacts-org-complete--doc-function (candidate)
@@ -668,7 +672,7 @@ description."
         (erase-buffer)
         (insert contents)
         (org-mode)
-        (org-show-all)
+        (org-fold-show-all)
         (font-lock-ensure)))
     doc-buffer))
 
@@ -747,7 +751,7 @@ Usage: (add-hook \\='completion-at-point-functions
       (when (eq major-mode 'org-mode)
         (if (fboundp 'org-fold-show-context)
             (org-fold-show-context 'agenda)
-          (org-show-context 'agenda))))))
+          (org-fold-show-context 'agenda))))))
 
 (with-no-warnings (defvar date)) ;; unprefixed, from calendar.el
 (defun org-contacts-anniversaries (&optional field format)
@@ -1045,18 +1049,18 @@ address."
     (org-with-point-at marker
       (switch-to-buffer-other-window (org-contacts-irc-buffer)))))
 
-(defun org-contacts-completing-read-nickname (prompt collection
-                                                     &optional predicate require-match initial-input
-                                                     hist def inherit-input-method)
-  "Like `completing-read' but reads a property 'NICKNAME' value.
-Return a org-contacts NICKNAME as property's value after completion."
+(defun org-contacts-completing-read-nickname
+    (prompt collection
+            &optional predicate require-match initial-input
+            hist def inherit-input-method)
+  "Like `completing-read' but reads a property \"NICKNAME\" value in PROMPT.
+Return a org-contacts \"NICKNAME\" as property's value after completion."
   (let* ((org-contacts-all-contacts (with-memoization org-contacts-all-contacts
                                       (org-contacts--all-contacts)))
          (org-contacts-candidates-propertized
           (mapcar
            (lambda (plist)
              (let* ((name (plist-get plist :name))
-                    (name-chinese (plist-get plist :name-chinese))
                     (name-english (plist-get plist :name-english))
                     (nick (plist-get plist :nick)))
                (unless (or (null nick) (string-empty-p nick))
@@ -1068,11 +1072,12 @@ Return a org-contacts NICKNAME as property's value after completion."
                                        (unless (or (null nick) (string-empty-p nick))
                                          (propertize (format "(%s) " nick) :face '(:foreground "LightGray"))))))))
            org-contacts-all-contacts))
-         (contact-names (mapcar (lambda (plist) (plist-get plist :name)) org-contacts-all-contacts))
+         ;; (contact-names (mapcar (lambda (plist) (plist-get plist :name)) org-contacts-all-contacts))
          (contact-nick (substring-no-properties
-                        (org-completing-read "org-contacts NICKNAME: "
+                        (org-completing-read (or prompt "org-contacts NICKNAME: ")
                                              (append org-contacts-candidates-propertized collection
-                                                     (when (or (erc-server-buffer-live-p)
+                                                     (when (or (featurep 'erc)
+                                                               (erc-server-buffer-live-p)
                                                                (erc-server-process-alive)
                                                                erc-server-processing-p)
                                                        (org-contacts-erc-nicknames-list)))
@@ -1259,11 +1264,11 @@ which is returned.
 If SEPARATORS is non-nil, it should be a regular expression
 matching text which separates, but is not part of, the
 substrings.  If nil it defaults to `org-contacts-property-values-separators',
-normally \"[,; \f\t\n\r\v]+\", and OMIT-NULLS is forced to t.
+normally \"[,; \\f\\t\\n\\r\\v]+\", and OMIT-NULLS is forced to t.
 
-If OMIT-NULLS is t, zero-length substrings are omitted from the list \(so
+If OMIT-NULLS is t, zero-length substrings are omitted from the list so
 that for the default value of SEPARATORS leading and trailing whitespace
-are effectively trimmed).  If nil, all zero-length substrings are retained."
+are effectively trimmed.  If nil, all zero-length substrings are retained."
   (let* ((omit-nulls (if separators omit-nulls t))
          (rexp (or separators org-contacts-property-values-separators))
          (inputlist (split-string string rexp omit-nulls))
@@ -1300,7 +1305,12 @@ are effectively trimmed).  If nil, all zero-length substrings are retained."
   (when (and (eq major-mode 'org-mode)
              (member (buffer-file-name)
                      (mapcar #'expand-file-name (org-contacts-files)))
-             (not (org-before-first-heading-p)))
+             (not (org-before-first-heading-p))
+             (let ((element (org-element-at-point)))
+               (funcall (cdr (org-make-tags-matcher org-contacts-matcher))
+                        (org-element-property :todo-keyword element)
+                        (org-get-tags element)
+                        (org-element-property :level element))))
     (if (bound-and-true-p org-id-link-to-org-use-id)
         (org-id-store-link)
       (let ((headline-str (substring-no-properties (org-get-heading t t t t))))
@@ -1331,7 +1341,7 @@ Each element has the form (NAME . (FILE . POSITION))."
                       (property-name-english (cdr (assoc (upcase "NAME(English)")  entry-properties)))
                       (property-nick  (cdr (assoc "NICK" entry-properties)))
                       (property-email (cdr (assoc "EMAIL" entry-properties)))
-                      (property-mobile (cdr (assoc "MOBILE" entry-properties)))
+                      ;; (property-mobile (cdr (assoc "MOBILE" entry-properties)))
                       (property-wechat (cdr (assoc (upcase "WeChat") entry-properties)))
                       (property-qq (cdr (assoc "QQ" entry-properties))))
                  (list :name name :file file :position position
@@ -1404,6 +1414,9 @@ Each element has the form (NAME . (FILE . POSITION))."
   (if (fboundp 'org-add-link-type)
       (org-add-link-type "mailto")))
 
+(defvar org-contacts-emails-list nil
+  "A list variable of all org-contacts emails.")
+
 (defun org-contacts-mailto-link--get-all-emails ()
   "Retrieve all org-contacts EMAIL property values."
   (setq org-contacts-emails-list
@@ -1429,7 +1442,8 @@ Each element has the form (NAME . (FILE . POSITION))."
              email))
          (org-contacts--all-contacts)))
   ;; clean nil and empty string "" from result.
-  (delq "" (delq nil org-contacts-emails-list)))
+  (delete ""
+          (delete nil org-contacts-emails-list)))
 
 (defun org-contacts-mailto-link-completion (&optional _arg)
   "Org mode link `mailto:' completion with org-contacts emails."
