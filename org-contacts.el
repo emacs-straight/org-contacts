@@ -1076,7 +1076,7 @@ Return a org-contacts \"NICKNAME\" as property's value after completion."
          (contact-nick (substring-no-properties
                         (org-completing-read (or prompt "org-contacts NICKNAME: ")
                                              (append org-contacts-candidates-propertized collection
-                                                     (when (or (featurep 'erc)
+                                                     (when (or (require 'erc nil t)
                                                                (erc-server-buffer-live-p)
                                                                (erc-server-process-alive)
                                                                erc-server-processing-p)
