@@ -82,6 +82,11 @@
   "Options about contacts management."
   :group 'org)
 
+(defcustom org-contacts-directory nil
+  "Directory of Org files to use as contacts source.
+When set to nil, all your Org files will be used."
+  :type 'string)
+
 (defcustom org-contacts-files nil
   "List of Org files to use as contacts source.
 When set to nil, all your Org files will be used."
@@ -836,8 +841,142 @@ This function should be called from `gnus-article-prepare-hook'."
                   '(:ascent center)))
      " ")))
 
+;;====================================== org-contacts searching =====================================
+
+(defcustom org-contacts-identity-properties-list
+  (list org-contacts-email-property
+        org-contacts-alias-property
+        org-contacts-tel-property
+        org-contacts-address-property
+        org-contacts-birthday-property)
+  "Matching rule for finding heading that are contacts.
+This can be property key checking."
+  :type 'list
+  :safe 'listp)
+
+(defvar org-contacts-ahead-space-padding (make-string 5 ? )
+  "The space padding for align avatar image with contact name and properties.")
+
+(defun org-contacts--candidate (headline)
+  "Return candidate string from Org HEADLINE epom element node."
+  (let* ((org-contacts-icon-size 32)
+         (contact-name (org-element-property :raw-value headline))
+         (tags (org-element-property :tags headline))
+         (properties (org-entry-properties headline 'standard))
+         ;; extra headline properties
+         (avatar-image-path
+          (when-let* ((avatar-value (car (org-entry-get-multivalued-property headline "AVATAR")))
+                      (avatar-link-path (cond
+                                         ;; [[file:contact_dir/avatar.png]]
+                                         ((string-match org-link-plain-re avatar-value)
+                                          (when (string-equal (match-string 1 avatar-value) "file")
+                                            (match-string 2 avatar-value)))
+                                         ;; contact-name.jpg
+                                         ((string-match (concat (regexp-opt image-file-name-extensions) (rx line-end)) avatar-value)
+                                          (match-string 0 avatar-value))))
+                      (avatar-absolute-path (file-name-concat
+                                             (or org-contacts-directory
+                                                 (expand-file-name (file-name-directory (car org-contacts-files))))
+                                             avatar-link-path))
+                      ( (org-file-image-p avatar-absolute-path))
+                      ( (file-exists-p avatar-absolute-path)))
+            avatar-absolute-path))
+         (info (concat "\n"
+                       (concat org-contacts-ahead-space-padding "   ")
+                       (string-join (let ((org-property-separators (list (cons org-contacts-nickname-property "[,\ ]"))))
+                                      (org-entry-get-multivalued-property headline org-contacts-nickname-property)) ", ")
+                       (string-join (let ((org-property-separators (list (cons org-contacts-email-property "[,\ ]"))))
+                                      (org-entry-get-multivalued-property headline org-contacts-email-property)) ", ")
+                       "\n"))
+         (middle-line-length (when-let* ((length (- (- org-tags-column)
+                                                    (length (string-join tags ":"))
+                                                    (length contact-name)))
+                                         (wholenump length))
+                               length)))
+    ;; detect whether headline is an org-contacts entry?
+    (when (seq-intersection (mapcar 'car properties) org-contacts-identity-properties-list)
+      (propertize
+       (concat
+        (if avatar-image-path
+            (propertize org-contacts-ahead-space-padding
+                        'display (create-image avatar-image-path nil nil
+                                               :ascent 30 ; set image baseline to align image top with candidate line.
+                                               :width org-contacts-icon-size))
+          org-contacts-ahead-space-padding)
+        " "
+        contact-name
+        (format " %s [%s]"
+                (make-string (or middle-line-length 0) ?―)
+                (string-join tags ":")))
+       'contact-name contact-name
+       'annotation info))))
+
+(defun org-contacts--candidates (files)
+  "Return a list of candidates from FILES."
+  (with-temp-buffer
+    (dolist (file files)
+      (insert-file-contents file) ; don't need to actually open file.
+      (goto-char (point-max))
+      (newline 2))
+    (delay-mode-hooks ; This will prevent user hooks from running during parsing.
+      (org-mode)
+      (goto-char (point-min))
+      (let ((candidates nil))
+        (org-element-map (org-element-parse-buffer 'headline) 'headline
+          (lambda (headline)
+            (when-let ((candidate (org-contacts--candidate headline)))
+              (push candidate candidates))))
+        (nreverse candidates)))))
+
+(defun org-contacts--annotator (candidate)
+  "Annotate contact completion CANDIDATE."
+  (concat (propertize " " 'display '(space :align-to center))
+          (get-text-property 0 'annotation candidate)))
+
+(defun org-contacts--return-candidates (&optional files)
+  "Return org-contacts candidates which parsed from FILES."
+  (if-let ((files (or files org-contacts-files)))
+      (org-contacts--candidates files)
+    (user-error "Files does not exist: %S" files)))
+
+(defvar org-contacts--candidates-cache nil
+  "A cache variable of org-contacts--candidates.")
+
+(defun org-contacts-browse-function (contact-name)
+  "Jump to CONTACT-NAME headline."
+  (mapcar
+   (lambda (file)
+     (let ((buf (find-file-noselect (expand-file-name file))))
+       (with-current-buffer buf
+         ;; NOTE: `org-goto-marker-or-bmk' will display buffer in current window, not follow `display-buffer' rule.
+         (org-goto-marker-or-bmk (org-find-exact-headline-in-buffer contact-name))
+         ;; FIXME: `goto-char' not physically move point in buffer.
+         ;; (display-buffer buf '(display-buffer-below-selected))
+         ;; (goto-char (org-find-exact-headline-in-buffer contact-name nil t))
+         )))
+   org-contacts-files))
+
 ;;;###autoload
-(defun org-contacts (name)
+(defun org-contacts (&optional files)
+  "Search org-contacts from FILES and jump to contact location."
+  (interactive)
+  (unless org-contacts--candidates-cache
+    (setq org-contacts--candidates-cache (org-contacts--return-candidates files)))
+  (if-let* ((files (or files org-contacts-files))
+            ((seq-every-p 'file-exists-p files)))
+      (when-let* ((candidates org-contacts--candidates-cache)
+                  (minibuffer-allow-text-properties t)
+                  (completion-extra-properties
+                   (list :category 'org-contacts
+                         :annotation-function #'org-contacts--annotator))
+                  (choice (completing-read "org-contacts: " candidates nil 'require-match))
+                  (contact-name (get-text-property 0 'contact-name choice)))
+        ;; jump to org-contacts file contact position.
+        (org-contacts-browse-function contact-name))
+    (user-error "Files does not exist: %S" files)))
+
+;;;###autoload
+(defun org-contacts-agenda (name)
   "Create agenda view for contacts matching NAME."
   (interactive (list (read-string "Name: ")))
   (let ((org-agenda-files (org-contacts-files))

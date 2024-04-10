@@ -26,16 +26,6 @@ Package has been submitted to NonGNU or MELPA. You can install it through those 
 
 ** Search contact in org-contacts databse
 
-Use command =[M-x org-contacts]= to search.
-
-** Complete contact property with some functions support
-
-*** NAME
-
-*** NICK
-
-*** EMAIL
-
-*** BIRTHDAY
-
+- Use command =[M-x org-contacts]= to search and select concate through ~completing-read~.
+- Use command =[M-x org-contacts-agenda]= for old behavior Org Agenda matching.
 
