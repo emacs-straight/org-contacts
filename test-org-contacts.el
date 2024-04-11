@@ -1,3 +1,14 @@
+;;; test-org-contacts.el --- org-contacts testing -*- lexical-binding: t; -*-
+;; -*- coding: utf-8 -*-
+
+;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+
+;;; Commentary:
+
+
+
+;;; Code:
+
 (require 'ert)
 
 
@@ -51,3 +62,9 @@
 ;;   (if (string-match regexp-rule pvalue)
 ;;       (match-string 1 pvalue)
 ;;     pvalue))
+
+
+
+(provide 'test-org-contacts)
+
+;;; test-org-contacts.el ends here

@@ -74,6 +74,7 @@
 (require 'ol)
 (autoload 'with-memoization "subr")
 
+(declare-function diary-anniversary "diary-lib" (month day &optional year mark))
 (declare-function erc-server-buffer-live-p "erc" ())
 (declare-function erc-server-process-alive "erc" (&optional buffer))
 (defvar erc-server-processing-p)
@@ -844,15 +845,15 @@ This function should be called from `gnus-article-prepare-hook'."
 ;;====================================== org-contacts searching =====================================
 
 (defcustom org-contacts-identity-properties-list
-  (list org-contacts-email-property
-        org-contacts-alias-property
-        org-contacts-tel-property
-        org-contacts-address-property
-        org-contacts-birthday-property)
+  `(,org-contacts-email-property
+    ,org-contacts-alias-property
+    ,org-contacts-tel-property
+    ,org-contacts-address-property
+    ,org-contacts-birthday-property)
   "Matching rule for finding heading that are contacts.
 This can be property key checking."
   :type 'list
-  :safe 'listp)
+  :safe #'listp)
 
 (defvar org-contacts-ahead-space-padding (make-string 5 ? )
   "The space padding for align avatar image with contact name and properties.")
@@ -894,7 +895,7 @@ This can be property key checking."
                                          (wholenump length))
                                length)))
     ;; detect whether headline is an org-contacts entry?
-    (when (seq-intersection (mapcar 'car properties) org-contacts-identity-properties-list)
+    (when (seq-intersection org-contacts-identity-properties-list (mapcar 'car properties))
       (propertize
        (concat
         (if avatar-image-path
@@ -961,7 +962,8 @@ This can be property key checking."
   "Search org-contacts from FILES and jump to contact location."
   (interactive)
   (unless org-contacts--candidates-cache
-    (setq org-contacts--candidates-cache (org-contacts--return-candidates files)))
+    (setq org-contacts--candidates-cache
+          (org-contacts--return-candidates (or files org-contacts-files))))
   (if-let* ((files (or files org-contacts-files))
             ((seq-every-p 'file-exists-p files)))
       (when-let* ((candidates org-contacts--candidates-cache)
@@ -1187,6 +1189,9 @@ address."
   (let ((marker (org-get-at-bol 'org-hd-marker)))
     (org-with-point-at marker
       (switch-to-buffer-other-window (org-contacts-irc-buffer)))))
+
+(defvar org-contacts-all-contacts nil
+  "A data store variable of all contacts.")
 
 (defun org-contacts-completing-read-nickname
     (prompt collection
