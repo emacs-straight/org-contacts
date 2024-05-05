@@ -1,0 +1,2 @@
+;; Generated package description from org-contacts.el  -*- no-byte-compile: t -*-
+(define-package "org-contacts" "1.1.0.20240430.11427" "Contacts management system for Org mode" '((emacs "27.1") (org "9.3.4")) :commit "0a01f8a631f0921e3f674dc758815868fcce013c" :authors '(("Julien Danjou" . "julien@danjou.info")) :maintainer '("stardiviner" . "numbchild@gmail.com") :keywords '("contacts" "org-mode" "outlines" "hypermedia" "calendar") :url "https://repo.or.cz/org-contacts.git")
