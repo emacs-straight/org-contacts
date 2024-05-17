@@ -954,7 +954,7 @@ This can be property key checking."
          ;; FIXME: `goto-char' not physically move point in buffer.
          ;; (display-buffer buf '(display-buffer-below-selected))
          ;; (goto-char (org-find-exact-headline-in-buffer contact-name nil t))
-         )))
+         (org-fold-show-context))))
    org-contacts-files))
 
 ;;;###autoload
@@ -1435,8 +1435,8 @@ are effectively trimmed.  If nil, all zero-length substrings are retained."
                              :complete #'org-contacts-link-complete
                              :store #'org-contacts-link-store
                              :face 'org-contacts-link-face)
-  (if (fboundp 'org-add-link-type)
-      (org-add-link-type "org-contact" 'org-contacts-link-open)))
+  (when (fboundp 'org-add-link-type)
+    (org-add-link-type "org-contact" 'org-contacts-link-open)))
 
 ;;;###autoload
 (defun org-contacts-link-store ()
@@ -1502,9 +1502,9 @@ Each element has the form (NAME . (FILE . POSITION))."
 ;;;###autoload
 (defun org-contacts-link-open (query)
   "Open contacts: link type with jumping or searching."
-  (let* ((f (car (org-contacts-files)))
-         (fname (file-name-nondirectory f))
-         (buf (if (buffer-live-p (get-buffer fname)) (get-buffer fname) (find-file f))))
+  (let* ((file-path (car (org-contacts-files)))
+         (file-name (file-name-nondirectory file-path))
+         (buf (or (get-buffer file-name) (get-buffer (find-file-noselect file-path)))))
     (cond
      ;; /query/ format searching
      ((string-match "/.*/" query)
@@ -1516,7 +1516,9 @@ Each element has the form (NAME . (FILE . POSITION))."
      (t
       (with-current-buffer buf
         (if-let ((position (org-find-exact-headline-in-buffer query)))
-            (goto-char (marker-position position))
+            (progn
+              (goto-char (marker-position position))
+              (org-fold-show-context))
           (user-error "[org-contacts] Can't find <%s> in your `org-contacts-files'." query)))
       (display-buffer buf '(display-buffer-below-selected))
 
