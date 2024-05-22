@@ -6,7 +6,7 @@
 ;; Maintainer: stardiviner <numbchild@gmail.com>
 ;; Keywords: contacts, org-mode, outlines, hypermedia, calendar
 ;; Version: 1.1
-;; Package-Requires: ((emacs "27.1") (org "9.3.4"))
+;; Package-Requires: ((emacs "27.1") (org "9.7"))
 ;; Homepage: https://repo.or.cz/org-contacts.git
 ;;
 ;; This file is not part of GNU Emacs.
@@ -226,6 +226,9 @@ A regexp matching strings of whitespace, `,' and `;'.")
 
 (defvar org-contacts-last-update nil
   "Last time the Org Contacts database has been updated.")
+
+(defvar org-contacts-all-contacts nil
+  "A data store variable of all contacts.")
 
 (defun org-contacts-files ()
   "Return list of Org files to use for contact management."
@@ -851,9 +854,7 @@ This function should be called from `gnus-article-prepare-hook'."
     ,org-contacts-address-property
     ,org-contacts-birthday-property)
   "Matching rule for finding heading that are contacts.
-This can be property key checking."
-  :type 'list
-  :safe #'listp)
+This can be property key checking.")
 
 (defvar org-contacts-ahead-space-padding (make-string 5 ? )
   "The space padding for align avatar image with contact name and properties.")
@@ -866,7 +867,7 @@ This can be property key checking."
          (properties (org-entry-properties headline 'standard))
          ;; extra headline properties
          (avatar-image-path
-          (when-let* ((avatar-value (car (org-entry-get-multivalued-property headline "AVATAR")))
+          (when-let* ((avatar-value (org-entry-get headline "AVATAR"))
                       (avatar-link-path (cond
                                          ;; [[file:contact_dir/avatar.png]]
                                          ((string-match org-link-plain-re avatar-value)
@@ -884,16 +885,15 @@ This can be property key checking."
             avatar-absolute-path))
          (info (concat "\n"
                        (concat org-contacts-ahead-space-padding "   ")
-                       (string-join (let ((org-property-separators (list (cons org-contacts-nickname-property "[,\ ]"))))
-                                      (org-entry-get-multivalued-property headline org-contacts-nickname-property)) ", ")
-                       (string-join (let ((org-property-separators (list (cons org-contacts-email-property "[,\ ]"))))
-                                      (org-entry-get-multivalued-property headline org-contacts-email-property)) ", ")
+                       (let ((org-property-separators (list (cons org-contacts-nickname-property "[,\ ]"))))
+                         (org-entry-get headline org-contacts-nickname-property))
+                       (let ((org-property-separators (list (cons org-contacts-email-property "[,\ ]"))))
+                         (org-entry-get headline org-contacts-email-property))
                        "\n"))
-         (middle-line-length (when-let* ((length (- (- org-tags-column)
-                                                    (length (string-join tags ":"))
-                                                    (length contact-name)))
-                                         (wholenump length))
-                               length)))
+         (middle-line-length (let ((length (- (abs org-tags-column)
+                                              (length (string-join tags ":"))
+                                              (length contact-name))))
+                               (if (> length 0) length 0))))
     ;; detect whether headline is an org-contacts entry?
     (when (seq-intersection org-contacts-identity-properties-list (mapcar 'car properties))
       (propertize
@@ -1460,9 +1460,6 @@ are effectively trimmed.  If nil, all zero-length substrings are retained."
         (let ((link (concat "org-contact:" headline-str)))
           (org-link-add-props :link link :description headline-str)
           link)))))
-
-(defvar org-contacts-all-contacts nil
-  "A data store variable of all contacts.")
 
 (defun org-contacts--all-contacts ()
   "Return a list of all contacts in `org-contacts-files'.
