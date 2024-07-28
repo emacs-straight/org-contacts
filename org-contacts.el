@@ -763,6 +763,8 @@ Usage: (add-hook \\='completion-at-point-functions
           (org-fold-show-context 'agenda))))))
 
 (with-no-warnings (defvar date)) ;; unprefixed, from calendar.el
+
+;;;###autoload
 (defun org-contacts-anniversaries (&optional field format)
   "Compute FIELD anniversary for each contact, returning FORMAT.
 Default FIELD value is \"BIRTHDAY\".
