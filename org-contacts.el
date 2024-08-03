@@ -118,10 +118,8 @@ When set to nil, all your Org files will be used."
   :type 'string)
 
 (defcustom org-contacts-ignore-property "IGNORE"
-  "Name of the property, which values will be ignored when
-completing or exporting to vcard."
+  "Name of the property which values ignored when completing or exporting to vCard."
   :type 'string)
-
 
 (defcustom org-contacts-birthday-format "Birthday: %l (%Y)"
   "Format of the anniversary agenda entry.
@@ -305,8 +303,7 @@ buffer."
     org-contacts-db))
 
 (defun org-contacts-at-point (&optional pom)
-  "Return the contacts at point-or-marker POM or current position
-if nil."
+  "Return the contacts at point or marker POM or current position."
   (setq pom (or pom (point)))
   (org-with-point-at pom
     (list (org-get-heading t) (set-marker (make-marker) pom) (org-entry-properties pom 'all))))
@@ -316,8 +313,7 @@ if nil."
 If all match values are nil, return all contacts.
 
 The optional PROP-MATCH argument is a single (PROP . VALUE) cons
-cell corresponding to the contact properties.
-"
+cell corresponding to the contact properties."
   (if (and (null name-match)
            (null prop-match)
            (null tags-match))
@@ -466,7 +462,7 @@ prefixes rather than just the beginning of the string."
                )))))
 
 (defun org-contacts-display-sort-function (completions)
-  "Sort function for contacts display."
+  "Sort function for contacts COMPLETIONS."
   (mapcar (lambda (string)
             (cl-loop with len = (1- (length string))
                      for i upfrom 0 to len
@@ -500,7 +496,7 @@ prefixes rather than just the beginning of the string."
               (display-sort-function . org-contacts-display-sort-function))))
 
 (defun org-contacts-complete-group (string)
-  "Complete text at START from a group.
+  "Complete STRING as start from a group.
 
 A group FOO is composed of contacts with the tag FOO."
   (let* ((completion-ignore-case org-contacts-completion-ignore-case)
@@ -544,13 +540,10 @@ A group FOO is composed of contacts with the tag FOO."
                                       (not org-contacts-completion-ignore-case)))))))
 
 (defun org-contacts-complete-tags-props (string)
-  "Insert emails that match the tags expression.
+  "Insert emails that match the tags expression beginning with STRING.
 
-For example: FOO-BAR will match entries tagged with FOO but not
-with BAR.
-
-See (org) Matching tags and properties for a complete
-description."
+For example: FOO-BAR will match entries tagged with FOO but not with BAR.
+See (org) Matching tags and properties for a complete description."
   (let* ((completion-ignore-case org-contacts-completion-ignore-case)
          (completion-p (string-match-p
                         (concat "^" org-contacts-tags-props-prefix) string)))
@@ -586,8 +579,7 @@ description."
           result)))))
 
 (defun org-contacts-remove-ignored-property-values (ignore-list list)
-  "Remove all ignore-list's elements from list and you can use
-   regular expressions in the ignore list."
+  "Remove all IGNORE-LIST's elements from LIST and you can use regular expressions in the ignore list."
   (cl-remove-if (lambda (el)
                   (cl-find-if (lambda (x)
                                 (string-match-p x el))
@@ -595,7 +587,7 @@ description."
                 list))
 
 (defun org-contacts-complete-name (string)
-  "Complete text at START with a user name and email."
+  "Complete STRING at start with a user name and email."
   (let* ((completion-ignore-case org-contacts-completion-ignore-case)
          (completion-list
           (cl-loop for contact in (org-contacts-filter)
@@ -646,12 +638,12 @@ description."
                   'org-contacts-complete-functions string))))))))
 
 (defun org-contacts-org-complete--annotation-function (candidate)
-  "Return org-contacts tags of contact candidate."
+  "Return `org-contacts' tags of contact CANDIDATE."
   ;; TODO
   (ignore candidate))
 
 (defun org-contacts-org-complete--doc-function (candidate)
-  "Return org-contacts content of contact candidate."
+  "Return `org-contacts' content of contact CANDIDATE."
   (let* ((candidate (substring-no-properties candidate 1 nil))
          (contact (seq-find
                    (lambda (contact) (string-equal (plist-get contact :name) candidate))
@@ -689,7 +681,7 @@ description."
 (add-to-list 'display-buffer-alist '("^ \\*org-contact\\*" . (display-buffer-below-selected)))
 
 (defun org-contacts-org-complete--location-function (candidate)
-  "Return org-contacts location of contact candidate."
+  "Return `org-contacts' location of contact CANDIDATE."
   (let* ((candidate (substring-no-properties candidate 1 nil))
          (contact (seq-find
                    (lambda (contact) (string-equal (plist-get contact :name) candidate))
@@ -704,7 +696,7 @@ description."
 
 ;;;###autoload
 (defun org-contacts-org-complete-function ()
-  "completion-at-point function to complete @name in `org-mode'.
+  "`completion-at-point' function to complete @name in `org-mode'.
 Usage: (add-hook \\='completion-at-point-functions
                  #\\='org-contacts-org-complete-function nil \\='local)"
   (when-let* ((end (point))
@@ -729,6 +721,13 @@ Usage: (add-hook \\='completion-at-point-functions
             :company-docsig #'identity                                    ; metadata
             :company-doc-buffer #'org-contacts-org-complete--doc-function ; doc popup
             :company-location #'org-contacts-org-complete--location-function))))
+
+;;;###autoload
+(defun org-contacts-org-complete-setup ()
+  "Setup `completion-at-point-functions' with `org-contacts' in buffer local."
+  (add-hook 'completion-at-point-functions 'org-contacts-org-complete-function nil 'local))
+;;;###autoload
+(add-hook 'org-mode-hook #'org-contacts-org-complete-setup)
 
 (defun org-contacts-gnus-get-name-email ()
   "Get name and email address from Gnus message."
@@ -856,7 +855,9 @@ This function should be called from `gnus-article-prepare-hook'."
     ,org-contacts-address-property
     ,org-contacts-birthday-property)
   "Matching rule for finding heading that are contacts.
-This can be property key checking.")
+This can be property key checking."
+  :type 'list
+  :safe 'listp)
 
 (defvar org-contacts-ahead-space-padding (make-string 5 ? )
   "The space padding for align avatar image with contact name and properties.")
@@ -937,13 +938,13 @@ This can be property key checking.")
           (get-text-property 0 'annotation candidate)))
 
 (defun org-contacts--return-candidates (&optional files)
-  "Return org-contacts candidates which parsed from FILES."
+  "Return `org-contacts' candidates which parsed from FILES."
   (if-let ((files (or files org-contacts-files)))
       (org-contacts--candidates files)
     (user-error "Files does not exist: %S" files)))
 
 (defvar org-contacts--candidates-cache nil
-  "A cache variable of org-contacts--candidates.")
+  "A cache variable of `org-contacts--candidates'.")
 
 (defun org-contacts-browse-function (contact-name)
   "Jump to CONTACT-NAME headline."
@@ -961,7 +962,7 @@ This can be property key checking.")
 
 ;;;###autoload
 (defun org-contacts (&optional files)
-  "Search org-contacts from FILES and jump to contact location."
+  "Search `org-contacts' from FILES and jump to contact location."
   (interactive)
   (unless org-contacts--candidates-cache
     (setq org-contacts--candidates-cache
@@ -1049,17 +1050,14 @@ This adds `org-contacts-gnus-check-mail-address' and
 
 ;;;###autoload
 (defun org-contacts-setup-completion-at-point ()
-  "Add `org-contacts-message-complete-function' as a new function
-to complete the thing at point."
-  (add-to-list 'completion-at-point-functions
-               'org-contacts-message-complete-function))
+  "Add `org-contacts-message-complete-function' to capf for completing contact at point."
+  (add-to-list 'completion-at-point-functions 'org-contacts-message-complete-function nil 'local))
 
-(defun org-contacts-unload-hook ()
-  (remove-hook 'message-mode-hook #'org-contacts-setup-completion-at-point))
-
-(when (and org-contacts-enable-completion
-           (boundp 'completion-at-point-functions))
-  (add-hook 'message-mode-hook #'org-contacts-setup-completion-at-point))
+;;;###autoload
+(when (and org-contacts-enable-completion (boundp 'completion-at-point-functions))
+  (add-hook 'message-mode-hook #'org-contacts-setup-completion-at-point)
+  (when (featurep 'mu4e)
+    (add-hook 'mu4e-compose-mode-hook 'org-contacts-setup-completion-at-point)))
 
 (defun org-contacts-wl-get-from-header-content ()
   "Retrieve the content of the `From' header of an email.
@@ -1307,7 +1305,7 @@ to do our best."
      "END:VCARD\n\n")))
 
 (defun org-contacts-export-as-vcard (&optional name file to-buffer)
-  "Export org contacts to V-Card 3.0.
+  "Export org-contacts to V-Card 3.0.
 
 By default, all contacts are exported to `org-contacts-vcard-file'.
 
@@ -1358,10 +1356,10 @@ is created and the VCard is written into that buffer."
 
 (defun org-contacts-show-map (&optional name)
   "Show contacts on a map.
-Requires google-maps-el."
+Requires google-maps.el."
   (interactive)
   (unless (fboundp 'google-maps-static-show)
-    (error "`org-contacts-show-map' requires `google-maps-el'"))
+    (error "`org-contacts-show-map' requires `google-maps.el'"))
   (google-maps-static-show
    :markers
    (cl-loop
@@ -1371,8 +1369,10 @@ Requires google-maps-el."
     collect (cons (list addr) (list :label (string-to-char (car contact)))))))
 
 (defun org-contacts-strip-link (link)
-  "Remove brackets, description, link type and colon from an org
-link string and return the pure link target."
+  "Strip Org LINK extra delimiters.
+
+Remove brackets, description, link type and colon from an Org link
+string and return the pure link target."
   (let (startpos colonpos endpos)
     (setq startpos (string-match (regexp-opt '("[[tel:" "[[mailto:")) link))
     (if startpos
@@ -1496,12 +1496,14 @@ Each element has the form (NAME . (FILE . POSITION))."
         (org-contacts-files))))
 
 (setq org-contacts-all-contacts
-      (with-memoization org-contacts-all-contacts
+      (if (fboundp 'with-memoization)
+          (with-memoization org-contacts-all-contacts
+            (org-contacts--all-contacts))
         (org-contacts--all-contacts)))
 
 ;;;###autoload
 (defun org-contacts-link-open (query)
-  "Open contacts: link type with jumping or searching."
+  "Open org-contacts: link with jumping or searching QUERY."
   (let* ((file-path (car (org-contacts-files)))
          (file-name (file-name-nondirectory file-path))
          (buf (or (get-buffer file-name) (get-buffer (find-file-noselect file-path)))))
@@ -1519,7 +1521,7 @@ Each element has the form (NAME . (FILE . POSITION))."
             (progn
               (goto-char (marker-position position))
               (org-fold-show-context))
-          (user-error "[org-contacts] Can't find <%s> in your `org-contacts-files'." query)))
+          (user-error "[org-contacts] Can't find <%s> in your `org-contacts-files'" query)))
       (display-buffer buf '(display-buffer-below-selected))
 
       ;; FIXME:
@@ -1538,7 +1540,7 @@ Each element has the form (NAME . (FILE . POSITION))."
 
 ;;;###autoload
 (defun org-contacts-link-complete (&optional _arg)
-  "Create a org-contacts link using completion."
+  "Create a `org-contacts' link using completion."
   (let ((name (completing-read "org-contacts NAME: "
                                (mapcar
                                 (lambda (plist) (plist-get plist :name))
@@ -1546,7 +1548,7 @@ Each element has the form (NAME . (FILE . POSITION))."
     (concat "org-contact:" name)))
 
 (defun org-contacts-link-face (path)
-  "Different face color for different org-contacts link query."
+  "Different face color for different org-contacts: link PATH."
   (cond
    ((string-match "/.*/" path)
     '(:background "sky blue" :overline t :slant 'italic))
@@ -1560,10 +1562,10 @@ Each element has the form (NAME . (FILE . POSITION))."
       (org-add-link-type "mailto")))
 
 (defvar org-contacts-emails-list nil
-  "A list variable of all org-contacts emails.")
+  "A list variable of all `org-contacts' emails.")
 
 (defun org-contacts-mailto-link--get-all-emails ()
-  "Retrieve all org-contacts EMAIL property values."
+  "Retrieve all `org-contacts' EMAIL property values."
   (setq org-contacts-emails-list
         (mapcar
          (lambda (contact)
@@ -1591,7 +1593,7 @@ Each element has the form (NAME . (FILE . POSITION))."
           (delete nil org-contacts-emails-list)))
 
 (defun org-contacts-mailto-link-completion (&optional _arg)
-  "Org mode link `mailto:' completion with org-contacts emails."
+  "Org mode link `mailto:' completion with `org-contacts' emails."
   (let ((email (completing-read "org-contacts EMAIL: "
                                 (org-contacts-mailto-link--get-all-emails))))
     (concat "mailto:" email)))
