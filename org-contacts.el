@@ -864,7 +864,7 @@ This function should be called from `gnus-article-prepare-hook'."
     ,org-contacts-birthday-property)
   "Matching rule for finding heading that are contacts.
 This can be property key checking."
-  :type 'list
+  :type '(repeat symbol)
   :safe 'listp)
 
 (defvar org-contacts-ahead-space-padding (make-string 5 ? )
@@ -1059,7 +1059,7 @@ This adds `org-contacts-gnus-check-mail-address' and
 ;;;###autoload
 (defun org-contacts-setup-completion-at-point ()
   "Add `org-contacts-message-complete-function' to capf for completing contact at point."
-  (add-to-list 'completion-at-point-functions 'org-contacts-message-complete-function nil 'local))
+  (add-hook 'completion-at-point-functions 'org-contacts-message-complete-function nil 'local))
 
 (when (and org-contacts-enable-completion (boundp 'completion-at-point-functions))
   (add-hook 'message-mode-hook #'org-contacts-setup-completion-at-point)
