@@ -143,7 +143,7 @@ The following replacements are available:
   "Name of the property for IRC nickname match."
   :type 'string)
 
-(defcustom org-contacts-icon-size 32
+(defcustom org-contacts-icon-size 64
   "Size of the contacts icons."
   :type 'string)
 
@@ -309,6 +309,24 @@ buffer."
               org-contacts-last-update (current-time))
         (progress-reporter-done progress-reporter)))
     org-contacts-db))
+
+(defun org-contacts-search-contact (name)
+  "Search contact NAME in cached database and return org element POM."
+  (let (epom)
+    (dolist (contact (org-contacts-all-contacts) epom)
+      (when (string-equal (plist-get contact :name) name)
+        (with-current-buffer (find-file-noselect (expand-file-name (car org-contacts-files)))
+          (or (save-excursion
+                (goto-char (plist-get contact :position))
+                (setq epom (org-element-context)))
+              (progn
+                (org-goto-marker-or-bmk (org-find-exact-headline-in-buffer name))
+                (setq epom (org-element-context)))))))
+    epom))
+
+;;; TEST:
+;; (org-contacts-search-contact "stardiviner")
+;; (org-element-property :title (org-contacts-search-contact "stardiviner"))
 
 (defun org-contacts-at-point (&optional pom)
   "Return the contacts at point or marker POM or current position."
@@ -844,14 +862,14 @@ This function should be called from `gnus-article-prepare-hook'."
 
 (defun org-contacts-icon-as-string ()
   "Return the contact icon as a string."
-  (let ((image (org-contacts-get-icon)))
+  (let ((image (org-contacts-get-avatar-icon)))
     (concat
      (propertize "-" 'display
                  (append
                   (if image
                       image
                     `'(space :width (,org-contacts-icon-size)))
-                  '(:ascent center)))
+                  '(:ascent 100)))
      " ")))
 
 ;;====================================== org-contacts searching =====================================
@@ -1126,8 +1144,8 @@ address."
           (error (format "This contact has no mail address set (no %s property)"
                          org-contacts-email-property)))))))
 
-(defun org-contacts-get-icon (&optional pom)
-  "Get icon for contact at POM."
+(defun org-contacts-get-avatar-icon (&optional pom)
+  "Get icon for contact at POM and return the avatar icon image object."
   (setq pom (or pom (point)))
   (catch 'icon
     ;; Use `org-contacts-icon-property'
@@ -1153,10 +1171,8 @@ address."
       (when image-path
         (throw 'icon
                (if (featurep 'imagemagick)
-                   (create-image image-path 'imagemagick nil
-                                 :height org-contacts-icon-size)
-                 (create-image image-path nil nil
-                               :height org-contacts-icon-size)))))
+                   (create-image image-path 'imagemagick nil :ascent 100 :height org-contacts-icon-size)
+                 (create-image image-path nil nil :ascent 100 :height org-contacts-icon-size)))))
     ;; Next, try Gravatar
     (when org-contacts-icon-use-gravatar
       (defvar gravatar-size)
@@ -1436,7 +1452,7 @@ are effectively trimmed.  If nil, all zero-length substrings are retained."
     (cdr (reverse proplist))))
 
 
-;; Add an Org link type `org-contact:' for easy jump to or searching org-contacts headline.
+;;; Add an Org link type `org-contact:' for easy jump to or searching org-contacts headline.
 ;; link spec: [[org-contact:query][desc]]
 ;;;###autoload
 (if (fboundp 'org-link-set-parameters)
