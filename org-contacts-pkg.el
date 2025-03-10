@@ -1,2 +1,2 @@
-;; Generated package description from org-contacts.el  -*- no-byte-compile: t -*-
-(define-package "org-contacts" "1.1.0.20241203.194117" "Contacts management system for Org mode" '((emacs "29.1") (org "9.7")) :commit "9d80dfa5bfe1eb503e79229cc2f19f841c563709" :authors '(("Julien Danjou" . "julien@danjou.info")) :maintainer '("stardiviner" . "numbchild@gmail.com") :keywords '("contacts" "org-mode" "outlines" "hypermedia" "calendar") :url "https://repo.or.cz/org-contacts.git")
+;; Generated package description from org-contacts.el  -*- mode: lisp-data; no-byte-compile: t -*-
+(define-package "org-contacts" "1.1.0.20250309.165914" "Contacts management system for Org mode" '((emacs "29.1") (org "9.7")) :commit "b06a59736800865b8a7e8d6d45774169cb31528a" :authors '(("Julien Danjou" . "julien@danjou.info")) :maintainer '("stardiviner" . "numbchild@gmail.com") :keywords '("contacts" "org-mode" "outlines" "hypermedia" "calendar") :url "https://repo.or.cz/org-contacts.git")

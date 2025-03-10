@@ -979,11 +979,12 @@ This can be property key checking."
      (let ((buf (find-file-noselect (expand-file-name file))))
        (with-current-buffer buf
          ;; NOTE: `org-goto-marker-or-bmk' will display buffer in current window, not follow `display-buffer' rule.
-         (org-goto-marker-or-bmk (org-find-exact-headline-in-buffer contact-name))
-         ;; FIXME: `goto-char' not physically move point in buffer.
-         ;; (display-buffer buf '(display-buffer-below-selected))
-         ;; (goto-char (org-find-exact-headline-in-buffer contact-name nil t))
-         (org-fold-show-context))))
+         (when-let* ((found-contact (org-find-exact-headline-in-buffer contact-name)))
+           (org-goto-marker-or-bmk found-contact)
+           ;; FIXME: `goto-char' not physically move point in buffer.
+           ;; (display-buffer buf '(display-buffer-below-selected))
+           ;; (goto-char (org-find-exact-headline-in-buffer contact-name nil t))
+           (org-fold-show-context)))))
    org-contacts-files))
 
 ;;;###autoload
