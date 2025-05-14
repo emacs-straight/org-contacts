@@ -972,6 +972,11 @@ This can be property key checking."
 (defvar org-contacts--candidates-cache nil
   "A cache variable of `org-contacts--candidates'.")
 
+(defun org-contacts-cache-reset ()
+  "Reset `org-contacts--candidates-cache'."
+  (interactive)
+  (setq org-contacts--candidates-cache nil))
+
 (defun org-contacts-browse-function (contact-name)
   "Jump to CONTACT-NAME headline."
   (mapcar
