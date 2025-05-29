@@ -998,6 +998,7 @@ This can be property key checking."
 (defun org-contacts-cache-reset ()
   "Reset `org-contacts--candidates-cache'."
   (interactive)
+  (setq org-contacts-all-contacts nil)
   (setq org-contacts--candidates-cache nil))
 
 (defun org-contacts-browse-function (contact-name)
