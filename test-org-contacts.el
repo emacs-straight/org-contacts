@@ -63,6 +63,43 @@
 ;;       (match-string 1 pvalue)
 ;;     pvalue))
 
+(ert-deftest ert-test-org-contacts-do-not-skip-during-update ()
+  "The value of `org-agenda-skip-function-global' should not cause
+org-contacts to skip contacts while updating the database."
+  (let ((org-contacts-files (list (make-temp-file "ert-test-org-contacts" nil ".org")))
+        (org-agenda-skip-function-global
+         (lambda ()
+           (org-agenda-skip-entry-if 'regexp "Smith")))
+        (org-agenda-skip-function
+         (lambda ()
+           (org-agenda-skip-entry-if 'regexp "Henry"))))
+    (with-temp-file (car org-contacts-files)
+      (insert "\
+* John Doe
+:PROPERTIES:
+:EMAIL: jdoe@example.com
+:END:\n")
+      (insert "\
+* John Smith
+:PROPERTIES:
+:EMAIL: jsmith@example.com
+:END:\n")
+      (insert "\
+* Jon Henry
+:PROPERTIES:
+:EMAIL: jhenry@example.com
+:END:\n"))
+    (should
+     (seq-some (lambda (contact)
+                 (string= "John Smith"
+                          (car contact)))
+               (org-contacts-db)))
+    (should
+     (seq-some (lambda (contact)
+                 (string= "Jon Henry"
+                          (car contact)))
+               (org-contacts-db)))))
+
 
 
 (provide 'test-org-contacts)

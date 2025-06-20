@@ -268,7 +268,7 @@ buffer."
   "Return the latest Org Contacts Database."
   (let* ((org--matcher-tags-todo-only nil)
          (contacts-matcher (cdr (org-make-tags-matcher org-contacts-matcher)))
-         result)
+         result org-agenda-skip-function org-agenda-skip-function-global)
     (when (org-contacts-db-need-update-p)
       (let ((progress-reporter
              (make-progress-reporter "Updating Org Contacts Database..." 0 (length (org-contacts-files))))
