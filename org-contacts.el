@@ -668,42 +668,67 @@ See (org) Matching tags and properties for a complete description."
   ;; TODO
   (ignore candidate))
 
-(defun org-contacts-org-complete--doc-function (candidate)
+(defun org-contacts--candidates-org-complete-get-doc (candidate)
   "Return `org-contacts' content of contact CANDIDATE."
-  (let* ((candidate (substring-no-properties candidate 1 nil))
-         (contact (seq-find
-                   (lambda (contact) (string-equal (plist-get contact :name) candidate))
+  (let* ((contact (seq-find
+                   (lambda (contact) (string-equal (plist-get contact :name) (get-text-property 0 'contact-name candidate)))
                    (org-contacts-all-contacts)))
          (name (plist-get contact :name))
          (file (plist-get contact :file))
          (position (plist-get contact :position))
-         (doc-buffer (get-buffer-create " *org-contact*"))
          (org-contact-buffer (get-buffer (find-file-noselect file)))
          ;; get org-contact headline and property drawer.
-         (contents (with-current-buffer org-contact-buffer
-                     (when (derived-mode-p 'org-mode)
-                       (save-excursion
-                         (goto-char position)
-                         (cond ((ignore-errors (org-edit-src-code))
-                                (delete-other-windows))
-                               ((org-at-block-p)
-                                (org-narrow-to-block))
-                               (t (org-narrow-to-subtree)))
-                         (let ((content (buffer-substring (point-min) (point-max))))
-                           (when (buffer-narrowed-p) (widen))
-                           content))))))
-    (ignore name)
+         (contact-content (with-current-buffer org-contact-buffer
+                            (when (derived-mode-p 'org-mode)
+                              (save-excursion
+                                (goto-char position)
+                                (cond
+                                 ((org-at-block-p)
+                                  (org-narrow-to-block))
+                                 (t (org-narrow-to-subtree)))
+                                (let ((content (buffer-substring (point-min) (point-max))))
+                                  (when (buffer-narrowed-p) (widen))
+                                  content))))))
+    contact-content))
+
+;; TEST:
+;; (setq org-contacts--candidates-complete-doc-cache nil)
+;; (org-contacts--candidates-complete-doc-cache-setting)
+
+(defvar org-contacts--candidates-complete-doc-cache nil
+  "A list of contact candidates completion doc cache.")
+
+(defun org-contacts--candidates-complete-doc-cache-setting ()
+  "Generate cache for contact candidates completion doc."
+  (if (null org-contacts--candidates-complete-doc-cache)
+      (let* ((candidates (org-contacts--candidates-cache-setting))
+             (candidates-complete-doc-list (mapcar
+                                            (lambda (candidate)
+                                              (cons candidate (org-contacts--candidates-org-complete-get-doc candidate)))
+                                            candidates)))
+        (setq org-contacts--candidates-complete-doc-cache candidates-complete-doc-list))
+    org-contacts--candidates-complete-doc-cache))
+
+(defun org-contacts-org-complete--doc-function (candidate)
+  "Populates *org-contact* with the documentation for the content of contact CANDIDATE."
+  (let ((doc (alist-get candidate (org-contacts--candidates-complete-doc-cache-setting)))
+        (doc-buffer (get-buffer-create " *org-contact*")))
     (with-current-buffer doc-buffer
       (read-only-mode 1)
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (insert contents)
+        (insert doc)
         (org-mode)
         (org-fold-show-all)
-        (font-lock-ensure)))
-    doc-buffer))
+        (font-lock-ensure))
+      (current-buffer))))
 
-;;; display company-mode doc buffer bellow current window.
+;; TEST:
+;; (org-contacts-org-complete--doc-function (car org-contacts--candidates-cache-list))
+;; (benchmark 1 '(alist-get (car org-contacts--candidates-cache-list) (org-contacts--candidates-complete-doc-cache-setting)))
+;; (benchmark 1 '(org-contacts-org-complete--doc-function (nth 10 org-contacts--candidates-cache-list)))
+
+;; display company-mode doc buffer bellow current window.
 (add-to-list 'display-buffer-alist '("^ \\*org-contact\\*" . (display-buffer-below-selected)))
 
 (defun org-contacts-org-complete--location-function (candidate)
@@ -737,13 +762,11 @@ Usage: (add-hook \\='completion-at-point-functions
                (mapcar
                 (lambda (contact) (concat "@" (plist-get contact :name)))
                 (org-contacts-all-contacts))))
-
             :predicate 'stringp
             :exclusive 'no
             ;; properties check out `completion-extra-properties'
             :annotation-function #'org-contacts-org-complete--annotation-function
             ;; :exit-function ; TODO change completion candidate inserted contact name into org-contact link??
-
             :company-docsig #'identity                                    ; metadata
             :company-doc-buffer #'org-contacts-org-complete--doc-function ; doc popup
             :company-location #'org-contacts-org-complete--location-function))))
@@ -986,20 +1009,26 @@ This can be property key checking."
   (concat (propertize " " 'display '(space :align-to center))
           (get-text-property 0 'annotation candidate)))
 
-(defun org-contacts--return-candidates (&optional files)
+(defun org-contacts--candidates-return (&optional files)
   "Return `org-contacts' candidates which parsed from FILES."
   (if-let* ((files (or files org-contacts-files)))
       (org-contacts--candidates files)
     (user-error "Files does not exist: %S" files)))
 
-(defvar org-contacts--candidates-cache nil
-  "A cache variable of `org-contacts--candidates'.")
+(defvar org-contacts--candidates-cache-list nil
+  "A cache variable of `org-contacts--candidates' list.")
 
-(defun org-contacts-cache-reset ()
-  "Reset `org-contacts--candidates-cache'."
+(defun org-contacts--candidates-cache-reset ()
+  "Reset `org-contacts--candidates-cache-list'."
   (interactive)
   (setq org-contacts-all-contacts nil)
-  (setq org-contacts--candidates-cache nil))
+  (setq org-contacts--candidates-cache-list nil))
+
+(defun org-contacts--candidates-cache-setting (&optional files)
+  "Cache the internal variable `org-contacts--candidates-cache-list' of org-contacts candidates."
+  (if (null org-contacts--candidates-cache-list)
+      (setq org-contacts--candidates-cache-list (org-contacts--candidates-return (or files org-contacts-files)))
+    org-contacts--candidates-cache-list))
 
 (defun org-contacts-browse-function (contact-name)
   "Jump to CONTACT-NAME headline."
@@ -1020,12 +1049,10 @@ This can be property key checking."
 (defun org-contacts (&optional files)
   "Search `org-contacts' from FILES and jump to contact location."
   (interactive)
-  (unless org-contacts--candidates-cache
-    (setq org-contacts--candidates-cache
-          (org-contacts--return-candidates (or files org-contacts-files))))
+  (org-contacts--candidates-cache-setting files)
   (if-let* ((files (or files org-contacts-files))
             ((seq-every-p 'file-exists-p files)))
-      (when-let* ((candidates org-contacts--candidates-cache)
+      (when-let* ((candidates org-contacts--candidates-cache-list)
                   (minibuffer-allow-text-properties t)
                   (completion-extra-properties
                    (list :category 'org-contacts
