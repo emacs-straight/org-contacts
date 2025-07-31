@@ -185,9 +185,9 @@ This overrides `org-email-link-description-format' if set."
   "Default file for vcard export."
   :type 'file)
 
-(defcustom org-contacts-enable-completion t
+(defcustom org-contacts-completion-enabled-mode-list '(org-mode message-mode mu4e-compose-mode)
   "Enable or not the completion in `message-mode' with `org-contacts'."
-  :type 'boolean)
+  :type '(repeat symbol))
 
 (defcustom org-contacts-complete-functions
   '(org-contacts-complete-group org-contacts-complete-tags-props org-contacts-complete-name)
@@ -686,10 +686,10 @@ See (org) Matching tags and properties for a complete description."
                                  ((org-at-block-p)
                                   (org-narrow-to-block))
                                  (t (org-narrow-to-subtree)))
-                                (let ((content (buffer-substring (point-min) (point-max))))
+                                (let ((content (buffer-substring-no-properties (point-min) (point-max))))
                                   (when (buffer-narrowed-p) (widen))
                                   content))))))
-    contact-content))
+    (cons name contact-content)))
 
 ;; TEST:
 ;; (setq org-contacts--candidates-complete-doc-cache nil)
@@ -702,34 +702,55 @@ See (org) Matching tags and properties for a complete description."
   "Generate cache for contact candidates completion doc."
   (if (null org-contacts--candidates-complete-doc-cache)
       (let* ((candidates (org-contacts--candidates-cache-setting))
-             (candidates-complete-doc-list (mapcar
-                                            (lambda (candidate)
-                                              (cons candidate (org-contacts--candidates-org-complete-get-doc candidate)))
-                                            candidates)))
+             (candidates-complete-doc-list
+              (mapcar
+               (lambda (candidate)
+                 (org-contacts--candidates-org-complete-get-doc candidate))
+               candidates)))
         (setq org-contacts--candidates-complete-doc-cache candidates-complete-doc-list))
     org-contacts--candidates-complete-doc-cache))
 
+;; TEST:
+;; (let* ((candidate (car (org-contacts--candidates-complete-doc-cache-setting)))
+;;        (name (car candidate)))
+;;   ;; (pp candidate)
+;;   ;; (type-of candidate)
+;;   (print name)
+;;   (princ (text-properties-at 0 (cdr candidate)))
+;;   (get-text-property 0 'contact-name (cdr candidate))
+;;   (get-text-property 0 'annotation (cdr candidate)))
+;;
+;; (cdr (assoc "stardiviner" (org-contacts--candidates-complete-doc-cache-setting)))
+
 (defun org-contacts-org-complete--doc-function (candidate)
   "Populates *org-contact* with the documentation for the content of contact CANDIDATE."
-  (let ((doc (alist-get candidate (org-contacts--candidates-complete-doc-cache-setting)))
-        (doc-buffer (get-buffer-create " *org-contact*")))
+  (let* ((name (substring-no-properties candidate 1 nil))
+         (contact (seq-find
+                   (lambda (contact) (string-equal (plist-get contact :name) name))
+                   (org-contacts-all-contacts)))
+         (contact-content (cdr (assoc name (org-contacts--candidates-complete-doc-cache-setting))))
+         (doc-buffer (get-buffer-create " *org-contact*")))
     (with-current-buffer doc-buffer
       (read-only-mode 1)
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (insert doc)
+        (insert contact-content)
         (org-mode)
         (org-fold-show-all)
         (font-lock-ensure))
       (current-buffer))))
 
 ;; TEST:
+;; (org-contacts-org-complete--doc-function "@stardiviner")
 ;; (org-contacts-org-complete--doc-function (car org-contacts--candidates-cache-list))
 ;; (benchmark 1 '(alist-get (car org-contacts--candidates-cache-list) (org-contacts--candidates-complete-doc-cache-setting)))
 ;; (benchmark 1 '(org-contacts-org-complete--doc-function (nth 10 org-contacts--candidates-cache-list)))
 
 ;; display company-mode doc buffer bellow current window.
 (add-to-list 'display-buffer-alist '("^ \\*org-contact\\*" . (display-buffer-below-selected)))
+
+(defun org-contacts-org-complete--exit-function (candidate)
+  (message "org-contacts: %s" (get-text-property 0 'contact-name candidate)))
 
 (defun org-contacts-org-complete--location-function (candidate)
   "Return `org-contacts' location of contact CANDIDATE."
@@ -766,7 +787,8 @@ Usage: (add-hook \\='completion-at-point-functions
             :exclusive 'no
             ;; properties check out `completion-extra-properties'
             :annotation-function #'org-contacts-org-complete--annotation-function
-            ;; :exit-function ; TODO change completion candidate inserted contact name into org-contact link??
+            ;; TODO: change completion candidate inserted contact name into org-contact link
+            :exit-function #'org-contacts-org-complete--exit-function
             :company-docsig #'identity                                    ; metadata
             :company-doc-buffer #'org-contacts-org-complete--doc-function ; doc popup
             :company-location #'org-contacts-org-complete--location-function))))
@@ -774,7 +796,8 @@ Usage: (add-hook \\='completion-at-point-functions
 ;;;###autoload
 (defun org-contacts-org-complete-setup ()
   "Setup `completion-at-point-functions' with `org-contacts' in buffer local."
-  (add-hook 'completion-at-point-functions 'org-contacts-org-complete-function nil 'local))
+  (when (member major-mode org-contacts-completion-enabled-mode-list)
+    (add-hook 'completion-at-point-functions 'org-contacts-org-complete-function nil 'local)))
 ;;;###autoload
 (add-hook 'org-mode-hook #'org-contacts-org-complete-setup)
 
@@ -1132,14 +1155,14 @@ This adds `org-contacts-gnus-check-mail-address' and
   (add-hook 'gnus-article-prepare-hook #'org-contacts-gnus-store-last-mail))
 
 ;;;###autoload
-(defun org-contacts-setup-completion-at-point ()
+(defun org-contacts-email-setup-completion-at-point ()
   "Add `org-contacts-message-complete-function' to capf for completing contact at point."
-  (add-hook 'completion-at-point-functions 'org-contacts-message-complete-function nil 'local))
+  (when (member major-mode org-contacts-completion-enabled-mode-list)
+    (add-hook 'completion-at-point-functions 'org-contacts-message-complete-function nil 'local)))
 
-(when (and org-contacts-enable-completion (boundp 'completion-at-point-functions))
-  (add-hook 'message-mode-hook #'org-contacts-setup-completion-at-point)
-  (when (featurep 'mu4e)
-    (add-hook 'mu4e-compose-mode-hook 'org-contacts-setup-completion-at-point)))
+(add-hook 'message-mode-hook #'org-contacts-email-setup-completion-at-point)
+(when (featurep 'mu4e)
+  (add-hook 'mu4e-compose-mode-hook 'org-contacts-email-setup-completion-at-point))
 
 (defun org-contacts-wl-get-from-header-content ()
   "Retrieve the content of the `From' header of an email.
@@ -1349,7 +1372,9 @@ to do our best."
          (bday (org-contacts-vcard-escape (cdr (assoc-string org-contacts-birthday-property properties))))
          (addr (cdr (assoc-string org-contacts-address-property properties)))
          (nick (org-contacts-vcard-escape (cdr (assoc-string org-contacts-nickname-property properties))))
-         (categories (mapconcat (lambda (str) (concat " " str)) (delq "" (string-split (cdr (assoc-string "TAGS" properties)) ":"))))
+         (categories (mapconcat (lambda (str) (concat "" str))
+                                (delq "" (string-split (string-trim (cdr (assoc-string "TAGS" properties)) ":" ":") ":"))
+                                ","))
          (head (format "BEGIN:VCARD\nVERSION:3.0\nN:%s\nFN:%s\n" n name))
          emails-list result phones-list)
     (concat
