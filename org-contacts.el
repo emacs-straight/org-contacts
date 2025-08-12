@@ -1237,12 +1237,10 @@ address."
                 (cond
                  ;; [[file:dir/filename.png]]
                  ((string-match-p "\\[\\[.*\\]\\]" avatar)
-                  ;; FIXME: What if avatar matches the above regexp but the
-                  ;; one below?
+                  ;; FIXME: What if avatar matches the above regexp but the one below?
                   (when (string-match link-matcher-regexp avatar)
-                    ;; FIXME: 5 seems to be the length of `file:' but I can't
-                    ;; see anything that guarantees that the submatch 1 starts
-                    ;; with `file:'.
+                    ;; FIXME: 5 seems to be the length of `file:' but I can't see anything that
+                    ;; guarantees that the submatch 1 starts with `file:'.
                     (expand-file-name (substring (match-string-no-properties 1 avatar) 5 nil)
                                       contacts-dir)))
                  ;; "" (empty string)
