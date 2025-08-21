@@ -981,32 +981,56 @@ This can be property key checking."
                       (_ (org-file-image-p avatar-absolute-path))
                       (_ (file-exists-p avatar-absolute-path)))
             avatar-absolute-path))
+         (nickname (let ((org-property-separators (list (cons org-contacts-nickname-property "[,\ ]"))))
+                     (concat (propertize "nick: " 'face '(:foreground "SlateGray4" :height 90))
+                             (propertize (or (org-entry-get headline org-contacts-nickname-property) "")
+                                         'face '(:slant italic :foreground "DarkOliveGreen1")))))
+         (email (let ((org-property-separators (list (cons org-contacts-email-property "[,\ ]"))))
+                  (concat (propertize "email: " 'face '(:foreground "SlateGray4" :height 90))
+                          (propertize (or (org-entry-get headline org-contacts-email-property) "")
+                                      'face '(:foreground "MediumPurple3")))))
+         (wechat (propertize (or (org-entry-get headline "WeChat") "")
+                             'face '(:foreground "MediumPurple3")))
+         (bio (concat (propertize "bio: " 'face '(:foreground "SlateGray4" :height 90))
+                      (propertize (string-fill (or (org-entry-get headline "Bio") "")
+                                               (or fill-column (abs org-tags-column) (- (window-width) 15)))
+                                  'face '(:height 95))))
          (info (concat "\n"
-                       (concat org-contacts-ahead-space-padding "   ")
-                       (let ((org-property-separators (list (cons org-contacts-nickname-property "[,\ ]"))))
-                         (org-entry-get headline org-contacts-nickname-property))
-                       (let ((org-property-separators (list (cons org-contacts-email-property "[,\ ]"))))
-                         (org-entry-get headline org-contacts-email-property))
+                       ;; nick name
+                       ;; (concat org-contacts-ahead-space-padding "   ") nickname "\n"
+                       ;; email
+                       (concat org-contacts-ahead-space-padding "   ") email "\n"
+                       ;; wechat
+                       (concat org-contacts-ahead-space-padding "   ") wechat "\n"
+                       ;; bio
+                       bio
                        "\n"))
-         (middle-line-length (let ((length (- (abs org-tags-column)
-                                              (length (string-join tags ":"))
-                                              (length contact-name))))
-                               (if (> length 0) length 0))))
+         (middle-line-length (abs
+                              (- (or (abs org-tags-column) (- (window-width) 5))
+                                 (length (string-join tags ":"))
+                                 (length contact-name)))))
     ;; detect whether headline is an org-contacts entry?
     (when (seq-intersection org-contacts-identity-properties-list (mapcar 'car properties))
       (propertize
        (concat
+        ;; avatar image
         (if avatar-image-path
             (propertize org-contacts-ahead-space-padding
                         'display (create-image avatar-image-path nil nil
                                                :ascent 30 ; set image baseline to align image top with candidate line.
                                                :width org-contacts-icon-size))
           org-contacts-ahead-space-padding)
-        " "
-        contact-name
-        (format " %s [%s]"
-                (make-string (or middle-line-length 0) ?―)
-                (string-join tags ":")))
+        ;; contact name
+        " " (propertize contact-name 'face '(:inherit org-level-1))
+        ;; nick name
+        " " (concat "(" nickname ")")
+        ;; middle line
+        " " (propertize (make-string (or middle-line-length 0) ?―)
+                        'face '(:foreground "SlateGray4"))
+        ;; tags
+        " " (propertize (concat "[" (string-join tags ":") "]")
+                        'face '(:inherit org-tag)))
+       ;; candidate extra properties
        'contact-name contact-name
        'annotation info))))
 
