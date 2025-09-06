@@ -139,8 +139,12 @@ The following replacements are available:
   "Name of the property for contact icon."
   :type 'string)
 
+(defcustom org-contacts-name-property "NAME"
+  "Name of the property for name match."
+  :type 'string)
+
 (defcustom org-contacts-nickname-property "NICKNAME"
-  "Name of the property for IRC nickname match."
+  "Name of the property for nickname match."
   :type 'string)
 
 (defcustom org-contacts-icon-size 64
@@ -164,14 +168,17 @@ The following replacements are available:
   :type 'string)
 
 (defcustom org-contacts-matcher
-  (mapconcat #'identity
-             (mapcar (lambda (x) (concat x "<>\"\""))
-                     (list org-contacts-email-property
-                           org-contacts-alias-property
-                           org-contacts-tel-property
-                           org-contacts-address-property
-                           org-contacts-birthday-property))
-             "|")
+  (string-join
+   (mapcar (lambda (x) (concat x "<>\"\""))
+           (list org-contacts-icon-property
+                 org-contacts-name-property
+                 org-contacts-nickname-property
+                 org-contacts-alias-property
+                 org-contacts-email-property
+                 org-contacts-tel-property
+                 org-contacts-address-property
+                 org-contacts-birthday-property))
+   "|")
   "Matching rule for finding heading that are contacts.
 This can be a tag name, or a property check."
   :type 'string)
@@ -193,6 +200,10 @@ This overrides `org-email-link-description-format' if set."
   '(org-contacts-complete-group org-contacts-complete-tags-props org-contacts-complete-name)
   "List of functions used to complete contacts in `message-mode'."
   :type 'hook)
+
+(defcustom org-contacts-irc-nickname-property "IRC_NICKNAME"
+  "Name of the property for IRC nickname match."
+  :type 'string)
 
 ;; Decalre external functions and variables
 (declare-function org-reverse-string "org")
@@ -320,7 +331,7 @@ buffer."
                 (goto-char (plist-get contact :position))
                 (setq epom (org-element-context)))
               (progn
-                (org-goto-marker-or-bmk (org-find-exact-headline-in-buffer name))
+                (org-goto-marker-or-bmk (org-find-exact-headline-in-buffer name (current-buffer)))
                 (setq epom (org-element-context)))))))
     epom))
 
@@ -921,11 +932,14 @@ This function should be called from `gnus-article-prepare-hook'."
 ;;====================================== org-contacts searching =====================================
 
 (defcustom org-contacts-identity-properties-list
-  `(,org-contacts-email-property
-    ,org-contacts-alias-property
-    ,org-contacts-tel-property
-    ,org-contacts-address-property
-    ,org-contacts-birthday-property)
+  (list org-contacts-icon-property
+        org-contacts-name-property
+        org-contacts-nickname-property
+        org-contacts-alias-property
+        org-contacts-email-property
+        org-contacts-tel-property
+        org-contacts-address-property
+        org-contacts-birthday-property)
   "Matching rule for finding heading that are contacts.
 This can be property key checking."
   :type '(repeat symbol)
@@ -1084,11 +1098,11 @@ This can be property key checking."
      (let ((buf (find-file-noselect (expand-file-name file))))
        (with-current-buffer buf
          ;; NOTE: `org-goto-marker-or-bmk' will display buffer in current window, not follow `display-buffer' rule.
-         (when-let* ((found-contact (org-find-exact-headline-in-buffer contact-name)))
+         (when-let* ((found-contact (org-find-exact-headline-in-buffer contact-name buf)))
            (org-goto-marker-or-bmk found-contact)
            ;; FIXME: `goto-char' not physically move point in buffer.
            ;; (display-buffer buf '(display-buffer-below-selected))
-           ;; (goto-char (org-find-exact-headline-in-buffer contact-name nil t))
+           ;; (goto-char (org-find-exact-headline-in-buffer contact-name buf :pos-only))
            (org-fold-show-context)))))
    org-contacts-files))
 
@@ -1292,7 +1306,7 @@ address."
 (defun org-contacts-irc-buffer (&optional pom)
   "Get the IRC buffer associated with the entry at POM."
   (setq pom (or pom (point)))
-  (let ((nick (org-entry-get pom org-contacts-nickname-property)))
+  (let ((nick (org-entry-get pom org-contacts-irc-nickname-property)))
     (when nick
       (let ((buffer (get-buffer nick)))
         (when buffer
@@ -1641,9 +1655,9 @@ Each element has the form (NAME . (FILE . POSITION))."
      ;; jump to exact contact headline directly
      (t
       (with-current-buffer buf
-        (if-let* ((position (org-find-exact-headline-in-buffer query)))
+        (if-let* ((marker (org-find-exact-headline-in-buffer query buf)))
             (progn
-              (goto-char (marker-position position))
+              (org-goto-marker-or-bmk marker)
               (org-fold-show-context))
           (user-error "[org-contacts] Can't find <%s> in your `org-contacts-files'" query)))
       (display-buffer buf '(display-buffer-below-selected))
