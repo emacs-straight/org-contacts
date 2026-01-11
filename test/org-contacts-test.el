@@ -9,6 +9,7 @@
 
 ;;; Code:
 
+(require 'org-contacts)
 (require 'ert)
 
 
