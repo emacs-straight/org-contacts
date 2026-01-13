@@ -103,6 +103,6 @@ org-contacts to skip contacts while updating the database."
 
 
 
-(provide 'test-org-contacts)
+(provide 'org-contacts-test)
 
-;;; test-org-contacts.el ends here
+;;; org-contacts-test.el ends here
