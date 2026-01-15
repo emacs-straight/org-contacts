@@ -192,7 +192,8 @@ This overrides `org-email-link-description-format' if set."
   "Default file for vcard export."
   :type 'file)
 
-(defcustom org-contacts-completion-enabled-mode-list '(org-mode message-mode mu4e-compose-mode)
+(defcustom org-contacts-completion-enabled-mode-list
+  '(org-mode message-mode mu4e-compose-mode notmuch-message-mode)
   "Enable or not the completion in `message-mode' with `org-contacts'."
   :type '(repeat symbol))
 
