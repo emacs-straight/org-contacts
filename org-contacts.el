@@ -5,7 +5,7 @@
 ;; Author: Julien Danjou <julien@danjou.info>
 ;; Maintainer: stardiviner <numbchild@gmail.com>
 ;; Keywords: contacts, org-mode, outlines, hypermedia, calendar
-;; Version: 1.2
+;; Version: 1.3
 ;; Package-Requires: ((emacs "29.1") (org "9.7"))
 ;; Homepage: https://repo.or.cz/org-contacts.git
 ;;
@@ -92,6 +92,10 @@ When set to nil, all your Org files will be used."
   "List of Org files to use as contacts source.
 When set to nil, all your Org files will be used."
   :type '(repeat file))
+
+(defcustom org-contacts-id-property "ID"
+  "Name of the property for contact ID."
+  :type 'string)
 
 (defcustom org-contacts-email-property "EMAIL"
   "Name of the property for contact email address."
@@ -1400,6 +1404,7 @@ to do our best."
   (let* ((properties (nth 2 contact))
          (name (org-contacts-vcard-escape (car contact)))
          (n (org-contacts-vcard-encode-name name))
+         (id (cdr (assoc-string org-contacts-id-property properties)))
          (email (cdr (assoc-string org-contacts-email-property properties)))
          (tel (cdr (assoc-string org-contacts-tel-property properties)))
          (ignore-list (cdr (assoc-string org-contacts-ignore-property properties)))
@@ -1409,13 +1414,13 @@ to do our best."
          (bday (org-contacts-vcard-escape (cdr (assoc-string org-contacts-birthday-property properties))))
          (addr (cdr (assoc-string org-contacts-address-property properties)))
          (nick (org-contacts-vcard-escape (cdr (assoc-string org-contacts-nickname-property properties))))
-         (categories (mapconcat (lambda (str) (concat "" str))
-                                (delq "" (string-split (string-trim (cdr (assoc-string "TAGS" properties)) ":" ":") ":"))
-                                ","))
+         (categories (delq "" (org-split-string (alist-get "TAGS" properties "" nil #'string=) ":")))
          (head (format "BEGIN:VCARD\nVERSION:3.0\nN:%s\nFN:%s\n" n name))
          emails-list result phones-list)
     (concat
      head
+     (when id
+       (format "UID:urn:uuid:%s\n" id))
      (when email
        (progn
          (setq emails-list (org-contacts-remove-ignored-property-values
@@ -1444,7 +1449,7 @@ to do our best."
                  (calendar-extract-month cal-bday)
                  (calendar-extract-day cal-bday))))
      (when nick (format "NICKNAME:%s\n" nick))
-     (when categories (format "CATEGORIES:%s\n" categories))
+     (when categories (format "CATEGORIES:%s\n" (string-join categories ",")))
      (when note (format "NOTE:%s\n" note))
      "END:VCARD\n\n")))
 
