@@ -256,7 +256,7 @@ A regexp matching strings of whitespace, `,' and `;'.")
 (defun org-contacts-all-contacts ()
   "Return the data of all contacts."
   (setq org-contacts-all-contacts
-	(with-memoization org-contacts-all-contacts
+	      (with-memoization org-contacts-all-contacts
           (org-contacts--all-contacts))))
 
 (defun org-contacts-db-need-update-p ()
@@ -885,8 +885,8 @@ Format is a string matching the following format specification:
                                              (format "%d%s" years (diary-ordinal-suffix years)))))))))
 
 (defun org-contacts--completing-read-date ( prompt _collection
-                                  &optional _predicate _require-match _initial-input
-                                  _hist def _inherit-input-method)
+                                            &optional _predicate _require-match _initial-input
+                                            _hist def _inherit-input-method)
   "Like `completing-read' but reads a date.
 Only PROMPT and DEF are really used."
   (org-read-date nil nil nil prompt nil def))
@@ -1414,7 +1414,7 @@ to do our best."
          (bday (org-contacts-vcard-escape (cdr (assoc-string org-contacts-birthday-property properties))))
          (addr (cdr (assoc-string org-contacts-address-property properties)))
          (nick (org-contacts-vcard-escape (cdr (assoc-string org-contacts-nickname-property properties))))
-         (categories (delq "" (org-split-string (alist-get "TAGS" properties "" nil #'string=) ":")))
+         (categories (delete "" (org-split-string (alist-get "TAGS" properties "" nil #'string=) ":")))
          (head (format "BEGIN:VCARD\nVERSION:3.0\nN:%s\nFN:%s\n" n name))
          emails-list result phones-list)
     (concat
@@ -1616,71 +1616,62 @@ are effectively trimmed.  If nil, all zero-length substrings are retained."
 (defun org-contacts--all-contacts ()
   "Return a list of all contacts in `org-contacts-files'.
 Each element has the form (NAME . (FILE . POSITION))."
-  (car (mapcar
-        (lambda (file)
-          (unless (buffer-live-p (get-buffer (file-name-nondirectory file)))
-            (find-file-noselect file))
-          (with-current-buffer (find-file-noselect file)
-            (org-map-entries
-             (lambda ()
-               (let* ((name (substring-no-properties (org-get-heading t t t t)))
-                      (file (buffer-file-name))
-                      (position (point))
-                      ;; extract properties Org entry headline at `position' as data API for better contacts searching.
-                      (entry-properties (org-entry-properties position 'standard))
-                      (property-name-chinese (cdr (assoc (upcase "NAME(Chinese)")  entry-properties)))
-                      (property-name-english (cdr (assoc (upcase "NAME(English)")  entry-properties)))
-                      (property-nick  (cdr (assoc "NICK" entry-properties)))
-                      (property-email (cdr (assoc "EMAIL" entry-properties)))
-                      ;; (property-mobile (cdr (assoc "MOBILE" entry-properties)))
-                      (property-wechat (cdr (assoc (upcase "WeChat") entry-properties)))
-                      (property-qq (cdr (assoc "QQ" entry-properties))))
-                 (list :name name :file file :position position
-                       :name-chinese property-name-chinese
-                       :name-english property-name-english
-                       :nick property-nick
-                       :email property-email
-                       :mobile property-email
-                       :wechat property-wechat
-                       :qq property-qq))))))
-        (org-contacts-files))))
+  (mapcan
+   (lambda (file)
+     (unless (buffer-live-p (get-buffer (file-name-nondirectory file)))
+       (find-file-noselect file))
+     (with-current-buffer (find-file-noselect file)
+       (org-map-entries
+        (lambda ()
+          (let* ((name (substring-no-properties (org-get-heading t t t t)))
+                 (file (buffer-file-name))
+                 (position (point))
+                 ;; extract properties Org entry headline at `position' as data API for better contacts searching.
+                 (entry-properties (org-entry-properties position 'standard))
+                 (property-name-chinese (cdr (assoc (upcase "NAME(Chinese)")  entry-properties)))
+                 (property-name-english (cdr (assoc (upcase "NAME(English)")  entry-properties)))
+                 (property-nick  (cdr (assoc "NICK" entry-properties)))
+                 (property-email (cdr (assoc "EMAIL" entry-properties)))
+                 ;; (property-mobile (cdr (assoc "MOBILE" entry-properties)))
+                 (property-wechat (cdr (assoc (upcase "WeChat") entry-properties)))
+                 (property-qq (cdr (assoc "QQ" entry-properties))))
+            (list :name name :file file :position position
+                  :name-chinese property-name-chinese
+                  :name-english property-name-english
+                  :nick property-nick
+                  :email property-email
+                  :mobile property-email
+                  :wechat property-wechat
+                  :qq property-qq))))))
+   (org-contacts-files)))
 
 ;;;###autoload
 (defun org-contacts-link-open (query)
   "Open org-contacts: link with jumping or searching QUERY."
-  (let* ((file-path (car (org-contacts-files)))
-         (file-name (file-name-nondirectory file-path))
-         (buf (or (get-buffer file-name) (get-buffer (find-file-noselect file-path)))))
-    (cond
-     ;; /query/ format searching
-     ((string-match "/.*/" query)
-      (with-current-buffer buf
-        (string-match "/\\(.*\\)/" query)
-        (occur (match-string 1 query))))
+  (let (( bufs (mapcar #'find-file-noselect (org-contacts-files)) )) ;; list of buffers of org-contacts-files
+    (cond ;;
+     ;; 1. /query/ format searching
+     ((string-match "/\\(.*\\)/" query)  ;; conditional check, as well as captures query
+      (multi-occur bufs                  ;; do 'occur' on all buffers of org-contacts-files
+       (match-string 1 query)))          ;; the captured query
 
-     ;; jump to exact contact headline directly
-     (t
-      (with-current-buffer buf
-        (if-let* ((marker (org-find-exact-headline-in-buffer query buf)))
-            (progn
-              (org-goto-marker-or-bmk marker)
-              (org-fold-show-context))
-          (user-error "[org-contacts] Can't find <%s> in your `org-contacts-files'" query)))
-      (display-buffer buf '(display-buffer-below-selected))
+     ;; 2.  jump to exact contact headline directly
+     (t                                          ;;
+      (let ((query-has-found nil))               ;; local variable to check whether we found query
+        (dolist (buf bufs)                       ;; loop over all buffers
+          (unless query-has-found                ;; check query-has-found or not
+            (with-current-buffer buf
+              (if-let* ((marker (org-find-exact-headline-in-buffer query buf))) ;; check query
+                  (progn
+                    (org-link-open-as-file (buffer-file-name buf) nil) ;; added just for spliting windows better
+                    (org-goto-marker-or-bmk marker)
+                    (org-fold-show-context)
+                    (setq query-has-found t)     ;; sets query-has-found; thus it exits on loop
+                    )))))
 
-      ;; FIXME:
-      ;; (let* ((contact-entry (map-filter
-      ;;                        (lambda (contact-plist)
-      ;;                          (if (string-equal (plist-get contact-plist :name) query)
-      ;;                              contact-plist))
-      ;;                        (org-contacts-all-contacts)))
-      ;;        (contact-name (plist-get contact-entry :name))
-      ;;        (file (plist-get contact-entry :file))
-      ;;        (position (plist-get contact-entry :position))
-      ;;        (buf (get-buffer (file-name-nondirectory file))))
-      ;;   (with-current-buffer buf (goto-char position))
-      ;;   (display-buffer buf '(display-buffer-below-selected)))
-      ))))
+        (unless query-has-found         ;; notifies if there was no query
+          (user-error "[org-contacts] Can't find <%s> in your `org-contacts-files'" query))))
+     )))
 
 ;;;###autoload
 (defun org-contacts-link-complete (&optional _arg)
