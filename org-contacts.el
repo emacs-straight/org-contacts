@@ -63,7 +63,7 @@
 ;;   specific property. Or other matcher on `org-sparse-tree'.
 
 ;;; Code:
-
+
 (require 'cl-lib)
 (require 'org)
 (require 'gnus-util)
@@ -210,6 +210,11 @@ This overrides `org-email-link-description-format' if set."
   "Name of the property for IRC nickname match."
   :type 'string)
 
+(defcustom org-contacts-add-org-capture-template nil
+  "Whether auto add org-capture template into `org-capture-templates'."
+  :type 'boolean)
+
+
 ;; Decalre external functions and variables
 (declare-function org-reverse-string "org")
 (declare-function diary-ordinal-suffix "ext:diary-lib")
@@ -252,6 +257,38 @@ A regexp matching strings of whitespace, `,' and `;'.")
 
 (defvar org-contacts-all-contacts nil
   "A data store variable of all contacts.")
+
+(defun org-contacts--all-contacts ()
+  "Return a list of all contacts in `org-contacts-files'.
+Each element has the form (NAME . (FILE . POSITION))."
+  (mapcan
+   (lambda (file)
+     (unless (buffer-live-p (get-buffer (file-name-nondirectory file)))
+       (find-file-noselect file))
+     (with-current-buffer (find-file-noselect file)
+       (org-map-entries
+        (lambda ()
+          (let* ((name (substring-no-properties (org-get-heading t t t t)))
+                 (file (buffer-file-name))
+                 (position (point))
+                 ;; extract properties Org entry headline at `position' as data API for better contacts searching.
+                 (entry-properties (org-entry-properties position 'standard))
+                 (property-name-chinese (cdr (assoc (upcase "NAME(Chinese)")  entry-properties)))
+                 (property-name-english (cdr (assoc (upcase "NAME(English)")  entry-properties)))
+                 (property-nick  (cdr (assoc "NICK" entry-properties)))
+                 (property-email (cdr (assoc "EMAIL" entry-properties)))
+                 ;; (property-mobile (cdr (assoc "MOBILE" entry-properties)))
+                 (property-wechat (cdr (assoc (upcase "WeChat") entry-properties)))
+                 (property-qq (cdr (assoc "QQ" entry-properties))))
+            (list :name name :file file :position position
+                  :name-chinese property-name-chinese
+                  :name-english property-name-english
+                  :nick property-nick
+                  :email property-email
+                  :mobile property-email
+                  :wechat property-wechat
+                  :qq property-qq))))))
+   (org-contacts-files)))
 
 (defun org-contacts-all-contacts ()
   "Return the data of all contacts."
@@ -1583,9 +1620,10 @@ are effectively trimmed.  If nil, all zero-length substrings are retained."
 ;;;###autoload
 (if (fboundp 'org-link-set-parameters)
     (org-link-set-parameters "org-contact"
+                             :store #'org-contacts-link-store
                              :follow #'org-contacts-link-open
                              :complete #'org-contacts-link-complete
-                             :store #'org-contacts-link-store
+                             :preview #'org-contacts-link-preview
                              :face 'org-contacts-link-face)
   (when (fboundp 'org-add-link-type)
     (org-add-link-type "org-contact" 'org-contacts-link-open)))
@@ -1594,8 +1632,7 @@ are effectively trimmed.  If nil, all zero-length substrings are retained."
 (defun org-contacts-link-store ()
   "Store the contact in `org-contacts-files' with a link."
   (when (and (eq major-mode 'org-mode)
-             (member (buffer-file-name)
-                     (mapcar #'expand-file-name (org-contacts-files)))
+             (member (buffer-file-name) (mapcar #'expand-file-name (org-contacts-files)))
              (not (org-before-first-heading-p))
              (let ((element (org-element-at-point)))
                (funcall (cdr (org-make-tags-matcher org-contacts-matcher))
@@ -1613,49 +1650,16 @@ are effectively trimmed.  If nil, all zero-length substrings are retained."
           (org-link-add-props :link link :description headline-str)
           link)))))
 
-(defun org-contacts--all-contacts ()
-  "Return a list of all contacts in `org-contacts-files'.
-Each element has the form (NAME . (FILE . POSITION))."
-  (mapcan
-   (lambda (file)
-     (unless (buffer-live-p (get-buffer (file-name-nondirectory file)))
-       (find-file-noselect file))
-     (with-current-buffer (find-file-noselect file)
-       (org-map-entries
-        (lambda ()
-          (let* ((name (substring-no-properties (org-get-heading t t t t)))
-                 (file (buffer-file-name))
-                 (position (point))
-                 ;; extract properties Org entry headline at `position' as data API for better contacts searching.
-                 (entry-properties (org-entry-properties position 'standard))
-                 (property-name-chinese (cdr (assoc (upcase "NAME(Chinese)")  entry-properties)))
-                 (property-name-english (cdr (assoc (upcase "NAME(English)")  entry-properties)))
-                 (property-nick  (cdr (assoc "NICK" entry-properties)))
-                 (property-email (cdr (assoc "EMAIL" entry-properties)))
-                 ;; (property-mobile (cdr (assoc "MOBILE" entry-properties)))
-                 (property-wechat (cdr (assoc (upcase "WeChat") entry-properties)))
-                 (property-qq (cdr (assoc "QQ" entry-properties))))
-            (list :name name :file file :position position
-                  :name-chinese property-name-chinese
-                  :name-english property-name-english
-                  :nick property-nick
-                  :email property-email
-                  :mobile property-email
-                  :wechat property-wechat
-                  :qq property-qq))))))
-   (org-contacts-files)))
-
 ;;;###autoload
 (defun org-contacts-link-open (query)
   "Open org-contacts: link with jumping or searching QUERY."
   (let (( bufs (mapcar #'find-file-noselect (org-contacts-files)) )) ;; list of buffers of org-contacts-files
     (cond ;;
      ;; 1. /query/ format searching
-     ((string-match "/\\(.*\\)/" query)  ;; conditional check, as well as captures query
-      (multi-occur bufs                  ;; do 'occur' on all buffers of org-contacts-files
-       (match-string 1 query)))          ;; the captured query
-
-     ;; 2.  jump to exact contact headline directly
+     ;; Conditional check, as well as captures query do 'occur' on all buffers of org-contacts-files the captured query.
+     ((string-match "/\\(.*\\)/" query)
+      (multi-occur bufs (match-string 1 query)))
+     ;; 2. jump to exact contact headline directly
      (t                                          ;;
       (let ((query-has-found nil))               ;; local variable to check whether we found query
         (dolist (buf bufs)                       ;; loop over all buffers
@@ -1668,10 +1672,8 @@ Each element has the form (NAME . (FILE . POSITION))."
                     (org-fold-show-context)
                     (setq query-has-found t)     ;; sets query-has-found; thus it exits on loop
                     )))))
-
         (unless query-has-found         ;; notifies if there was no query
-          (user-error "[org-contacts] Can't find <%s> in your `org-contacts-files'" query))))
-     )))
+          (user-error "[org-contacts] Can't find <%s> in your `org-contacts-files'" query)))))))
 
 ;;;###autoload
 (defun org-contacts-link-complete (&optional _arg)
@@ -1681,6 +1683,38 @@ Each element has the form (NAME . (FILE . POSITION))."
                                 (lambda (plist) (plist-get plist :name))
                                 (org-contacts-all-contacts)))))
     (concat "org-contact:" name)))
+
+(defcustom org-contacts-avatar-preview-size 64
+  "The org-contacts avatar image size :height."
+  :type 'number
+  :safe #'numberp
+  :group 'org-link-beautify)
+
+;;;###autoload
+(defun org-contacts-link-preview (ov path link)
+  "Preview org-contct: link of PATH over OV overlay position for LINK element."
+  (if-let* ((name path)
+            (_ (display-graphic-p))
+            (epom (org-contacts-search-contact name))
+            (image (org-contacts-get-avatar-icon epom))
+            (display-height org-contacts-avatar-preview-size))
+      ;; display org-contacts avatar image
+      (prog1 ov
+        (setf (image-property image :height) display-height)
+        (overlay-put ov 'display image)
+        (overlay-put ov 'after-string (concat
+                                       (propertize "{" 'face '(:foreground "purple2"))
+                                       (propertize (format "@%s" name) 'face 'org-verbatim)
+                                       (propertize "}" 'face '(:foreground "purple2")))))
+    ;; display text-properties with icon
+    (if-let* ((text (org-element-property :title (org-contacts-search-contact name))))
+        (overlay-put ov 'after-string (concat
+                                       (propertize "{" 'face '(:foreground "purple2"))
+                                       (propertize text 'face 'org-verbatim)
+                                       ;; TODO: change text face height to not following the contact avatar icon image height.
+                                       ;; (propertize text 'face '(:inherit org-verbatim :height (face-attribute 'default :height)))
+                                       (propertize "}" 'face '(:foreground "purple2"))))
+      (org-link-beautify-iconify ov path link))))
 
 (defun org-contacts-link-face (path)
   "Different face color for different org-contacts: link PATH."
@@ -1733,6 +1767,36 @@ Each element has the form (NAME . (FILE . POSITION))."
                                 (org-contacts-mailto-link--get-all-emails))))
     (concat "mailto:" email)))
 
+;;; add `org-capture' template for org-contacts
+
+(when org-contacts-add-org-capture-template
+  (add-to-list 'org-capture-templates
+               `("C" ,(format "%s\tRecord contact -> 'Contacts.org'"
+                              (nerd-icons-mdicon "nf-md-card_account_details" :face 'nerd-icons-blue))
+                 entry (file ,(expand-file-name (car org-contacts-files)))
+                 "\
+* %^{NAME}\t\t\t\t%^g
+:PROPERTIES:
+:ID:   %(org-id-new)
+:DIR:  %\\1
+:DATE: %^U
+:AVATAR: %^{Avatar}
+:NICK: %^{Nick}
+:GENDER: %^{Gender|male|female|transgender}
+:RELATIONSHIP: %^{Relationship|internet|meet|friend|good friend|boy friend|girl friend|workmate|classmate|schoolmate}
+:FIRST-MEET: %^U  %^{How is the first-time meet? when? where? how?}
+:LANGUAGES: %^{Languages|Chinese|Chinese, English|English|Japanese|Korean}
+:SKILLS: %^{Skills|programming|economy}
+:OCCUPATION: %^{Occupation|programmer|freelancer|businessman|servant|artist}
+:END:
+%?"
+                 :empty-lines 0 :jump-to-captured t
+                 :refile-targets ((,(expand-file-name (car org-contacts-files)) . (:maxlevel 2)))
+                 ;; :after-finalize org-contacts--candidates-cache-reset
+                 )
+               :append))
+
+
 (provide 'org-contacts)
 
 ;;; org-contacts.el ends here
