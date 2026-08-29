@@ -1769,7 +1769,8 @@ are effectively trimmed.  If nil, all zero-length substrings are retained."
 
 ;;; add `org-capture' template for org-contacts
 
-(when org-contacts-add-org-capture-template
+(defun org-contacts-load-org-capture-template ()
+  "Load org-contacts capture template into `org-capture-templates'."
   (add-to-list 'org-capture-templates
                `("C" ,(format "%s\tRecord contact -> 'Contacts.org'"
                               (nerd-icons-mdicon "nf-md-card_account_details" :face 'nerd-icons-blue))
@@ -1795,6 +1796,9 @@ are effectively trimmed.  If nil, all zero-length substrings are retained."
                  ;; :after-finalize org-contacts--candidates-cache-reset
                  )
                :append))
+
+(when org-contacts-add-org-capture-template
+  (org-contacts-load-org-capture-template))
 
 
 (provide 'org-contacts)
