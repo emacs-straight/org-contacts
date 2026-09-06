@@ -214,6 +214,11 @@ This overrides `org-email-link-description-format' if set."
   "Whether auto add org-capture template into `org-capture-templates'."
   :type 'boolean)
 
+(defcustom org-contacts-capf-completing nil
+  "Whether add `org-contacts-complete-contact' into `completion-at-point-functions' in org-mode local."
+  :type 'boolean
+  :safe #'booleanp)
+
 
 ;; Decalre external functions and variables
 (declare-function org-reverse-string "org")
@@ -716,11 +721,6 @@ See (org) Matching tags and properties for a complete description."
                  (run-hook-with-args-until-success
                   'org-contacts-complete-functions string))))))))
 
-(defun org-contacts-org-complete--annotation-function (candidate)
-  "Return `org-contacts' tags of contact CANDIDATE."
-  ;; TODO
-  (ignore candidate))
-
 (defun org-contacts--candidates-org-complete-get-doc (candidate)
   "Return `org-contacts' content of contact CANDIDATE."
   (let* ((contact (seq-find
@@ -802,8 +802,15 @@ See (org) Matching tags and properties for a complete description."
 ;; display company-mode doc buffer bellow current window.
 (add-to-list 'display-buffer-alist '("^ \\*org-contact\\*" . (display-buffer-below-selected)))
 
-(defun org-contacts-org-complete--exit-function (candidate)
-  (message "org-contacts: %s" (get-text-property 0 'contact-name candidate)))
+(defun org-contacts-org-complete--exit-function (candidate status)
+  (when (derived-mode-p 'org-mode)
+    (let* ((end (point))
+           (begin (save-excursion (skip-chars-backward "[:alnum:]@") (point)))
+           (contact-name (buffer-substring-no-properties (+ begin 1) end))
+           (contact-at (concat "@" contact-name))
+           (org-contact-link (format "[[org-contact:%s][%s]]" contact-name contact-at)))
+      (replace-string-in-region contact-at org-contact-link begin end)))
+  (message "[org-contacts] consider to contact this person? %S" candidate))
 
 (defun org-contacts-org-complete--location-function (candidate)
   "Return `org-contacts' location of contact CANDIDATE."
@@ -820,10 +827,10 @@ See (org) Matching tags and properties for a complete description."
       (cons (current-buffer) position))))
 
 ;;;###autoload
-(defun org-contacts-org-complete-function ()
+(defun org-contacts-complete-contact ()
   "`completion-at-point' function to complete @name in `org-mode'.
 Usage: (add-hook \\='completion-at-point-functions
-                 #\\='org-contacts-org-complete-function nil \\='local)"
+                 #\\='org-contacts-complete-contact nil \\='local)"
   (when-let* ((end (point))
               (begin (save-excursion (skip-chars-backward "[:alnum:]@") (point)))
               (symbol (buffer-substring-no-properties begin end))
@@ -836,23 +843,26 @@ Usage: (add-hook \\='completion-at-point-functions
                (mapcar
                 (lambda (contact) (concat "@" (plist-get contact :name)))
                 (org-contacts-all-contacts))))
-            :predicate 'stringp
-            :exclusive 'no
             ;; properties check out `completion-extra-properties'
-            :annotation-function #'org-contacts-org-complete--annotation-function
-            ;; TODO: change completion candidate inserted contact name into org-contact link
-            :exit-function #'org-contacts-org-complete--exit-function
+            :predicate (lambda (candidate) (not (string-prefix-p "@+" candidate))) ; exclude +group candidates which not contact.
+            :company-kind (lambda (_) 'org-contacts)
+            :annotation-function (lambda (_) " org-contacts")
+            ;; :affixation-function (lambda (candidtes) (mapcar (lambda (candidate) (list candidate "@" " org-contacts")) candidates))
             :company-docsig #'identity                                    ; metadata
             :company-doc-buffer #'org-contacts-org-complete--doc-function ; doc popup
-            :company-location #'org-contacts-org-complete--location-function))))
+            :company-location #'org-contacts-org-complete--location-function
+            :exit-function #'org-contacts-org-complete--exit-function
+            :category  'org-contacts
+            :exclusive 'no))))
 
 ;;;###autoload
-(defun org-contacts-org-complete-setup ()
+(defun org-contacts-completion-setup ()
   "Setup `completion-at-point-functions' with `org-contacts' in buffer local."
   (when (member major-mode org-contacts-completion-enabled-mode-list)
-    (add-hook 'completion-at-point-functions 'org-contacts-org-complete-function nil 'local)))
+    (add-hook 'completion-at-point-functions 'org-contacts-complete-contact 80 'local)))
 ;;;###autoload
-(add-hook 'org-mode-hook #'org-contacts-org-complete-setup)
+(when org-contacts-capf-completing
+  (add-hook 'org-mode-hook #'org-contacts-completion-setup))
 
 (defun org-contacts-gnus-get-name-email ()
   "Get name and email address from Gnus message."
