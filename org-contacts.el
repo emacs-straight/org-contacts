@@ -77,6 +77,8 @@
 (declare-function diary-anniversary "diary-lib" (month day &optional year mark))
 (declare-function erc-server-buffer-live-p "erc" ())
 (declare-function erc-server-process-alive "erc" (&optional buffer))
+(declare-function nerd-icons-mdicon "nerd-icons" (&rest args))
+(declare-function org-link-beautify-iconify "org-link-beautify" (ov path link))
 (defvar erc-server-processing-p)
 
 (defgroup org-contacts nil
@@ -170,6 +172,11 @@ The following replacements are available:
 (defcustom org-contacts-tags-props-prefix "#"
   "Tags and properties prefix."
   :type 'string)
+
+(defcustom org-contacts-tag "contact"
+  "A tag to mark org-contacts heading entry as contact."
+  :type 'string
+  :safe #'stringp)
 
 (defcustom org-contacts-matcher
   (string-join
@@ -271,35 +278,40 @@ Each element has the form (NAME . (FILE . POSITION))."
      (unless (buffer-live-p (get-buffer (file-name-nondirectory file)))
        (find-file-noselect file))
      (with-current-buffer (find-file-noselect file)
-       (org-map-entries
-        (lambda ()
-          (let* ((name (substring-no-properties (org-get-heading t t t t)))
-                 (file (buffer-file-name))
-                 (position (point))
-                 ;; extract properties Org entry headline at `position' as data API for better contacts searching.
-                 (entry-properties (org-entry-properties position 'standard))
-                 (property-name-chinese (cdr (assoc (upcase "NAME(Chinese)")  entry-properties)))
-                 (property-name-english (cdr (assoc (upcase "NAME(English)")  entry-properties)))
-                 (property-nick  (cdr (assoc "NICK" entry-properties)))
-                 (property-email (cdr (assoc "EMAIL" entry-properties)))
-                 ;; (property-mobile (cdr (assoc "MOBILE" entry-properties)))
-                 (property-wechat (cdr (assoc (upcase "WeChat") entry-properties)))
-                 (property-qq (cdr (assoc "QQ" entry-properties))))
-            (list :name name :file file :position position
-                  :name-chinese property-name-chinese
-                  :name-english property-name-english
-                  :nick property-nick
-                  :email property-email
-                  :mobile property-email
-                  :wechat property-wechat
-                  :qq property-qq))))))
+       (delete
+        nil
+        (org-map-entries
+         (lambda ()
+           (when (member org-contacts-tag (org-get-tags (point) 'local))
+             (let* ((name (substring-no-properties (org-get-heading t t t t)))
+                    (file (buffer-file-name))
+                    (position (point))
+                    ;; extract properties Org entry headline at `position' as data API for better contacts searching.
+                    (entry-properties (org-entry-properties position 'standard))
+                    (property-name-chinese (cdr (assoc (upcase "NAME(Chinese)")  entry-properties)))
+                    (property-name-english (cdr (assoc (upcase "NAME(English)")  entry-properties)))
+                    (property-nick  (cdr (assoc "NICK" entry-properties)))
+                    (property-email (cdr (assoc "EMAIL" entry-properties)))
+                    ;; (property-mobile (cdr (assoc "MOBILE" entry-properties)))
+                    (property-wechat (cdr (assoc (upcase "WeChat") entry-properties)))
+                    (property-qq (cdr (assoc "QQ" entry-properties))))
+               (list :name name :file file :position position
+                     :name-chinese property-name-chinese
+                     :name-english property-name-english
+                     :nick property-nick
+                     :email property-email
+                     :mobile property-email
+                     :wechat property-wechat
+                     :qq property-qq))))))))
    (org-contacts-files)))
 
 (defun org-contacts-all-contacts ()
   "Return the data of all contacts."
-  (setq org-contacts-all-contacts
-	      (with-memoization org-contacts-all-contacts
-          (org-contacts--all-contacts))))
+  (if org-contacts-all-contacts
+      org-contacts-all-contacts
+    (setq org-contacts-all-contacts
+          (with-memoization org-contacts-all-contacts
+            (org-contacts--all-contacts)))))
 
 (defun org-contacts-db-need-update-p ()
   "Determine whether `org-contacts-db' needs to be refreshed."
@@ -831,11 +843,12 @@ See (org) Matching tags and properties for a complete description."
   "`completion-at-point' function to complete @name in `org-mode'.
 Usage: (add-hook \\='completion-at-point-functions
                  #\\='org-contacts-complete-contact nil \\='local)"
+  (unless org-contacts-all-contacts
+    (org-contacts-all-contacts))
   (when-let* ((end (point))
               (begin (save-excursion (skip-chars-backward "[:alnum:]@") (point)))
-              (symbol (buffer-substring-no-properties begin end))
-              (org-contacts-prefix-p (string-prefix-p "@" symbol)))
-    (when org-contacts-prefix-p
+              (symbol (buffer-substring-no-properties begin end)))
+    (when (string-prefix-p "@" symbol)
       (list begin
             end
             (completion-table-dynamic
@@ -1784,10 +1797,12 @@ are effectively trimmed.  If nil, all zero-length substrings are retained."
   "Load org-contacts capture template into `org-capture-templates'."
   (add-to-list 'org-capture-templates
                `("C" ,(format "%s\tRecord contact -> 'Contacts.org'"
-                              (nerd-icons-mdicon "nf-md-card_account_details" :face 'nerd-icons-blue))
+                              (if (featurep 'nerd-icons)
+                                  (nerd-icons-mdicon "nf-md-card_account_details" :face 'nerd-icons-blue)
+                                "⨝"))
                  entry (file ,(expand-file-name (car org-contacts-files)))
                  "\
-* %^{NAME}\t\t\t\t%^g
+* %^{NAME}\t\t\t\t:contact:%^g
 :PROPERTIES:
 :ID:   %(org-id-new)
 :DIR:  %\\1
