@@ -224,7 +224,12 @@ This overrides `org-email-link-description-format' if set."
 (defcustom org-contacts-capf-completing nil
   "Whether add `org-contacts-complete-contact' into `completion-at-point-functions' in org-mode local."
   :type 'boolean
-  :safe #'booleanp)
+  :safe #'booleanp
+  :set (lambda (symbol value)
+         (set-default-toplevel-value symbol value)
+         (if value
+             (add-hook 'org-mode-hook #'org-contacts-completion-setup)
+           (remove-hook 'org-mode-hook #'org-contacts-completion-setup))))
 
 
 ;; Decalre external functions and variables
@@ -873,9 +878,6 @@ Usage: (add-hook \\='completion-at-point-functions
   "Setup `completion-at-point-functions' with `org-contacts' in buffer local."
   (when (member major-mode org-contacts-completion-enabled-mode-list)
     (add-hook 'completion-at-point-functions 'org-contacts-complete-contact 80 'local)))
-;;;###autoload
-(when org-contacts-capf-completing
-  (add-hook 'org-mode-hook #'org-contacts-completion-setup))
 
 (defun org-contacts-gnus-get-name-email ()
   "Get name and email address from Gnus message."
